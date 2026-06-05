@@ -1,0 +1,25 @@
+{
+  "name": "@esela/sdk",
+  "version": "0.0.0",
+  "description": "SDK para integrar y extender la plataforma Esela (historias sociales para autismo)",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "homepage": "https://esela.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Esela-app/esela-sdk.git"
+  },
+  "keywords": [
+    "esela",
+    "social-stories",
+    "autism",
+    "aac",
+    "arasaac",
+    "accessibility"
+  ],
+  "files": ["src", "LICENSE", "README.md"],
+  "publishConfig": {
+    "access": "public"
+  }
+}

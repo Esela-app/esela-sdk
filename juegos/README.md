@@ -39,16 +39,26 @@ Pensado con mucho cuidado:
    como una app a pantalla completa, sin barras.
 3. Botones de arriba:
    - Los **animalitos** cambian de escenario.
+   - **Nivel ➖ / ➕** (o escribiendo el número) cambia la dificultad.
    - **🔄** genera un laberinto nuevo.
    - **🔊 / 🔇** activa o silencia el sonido.
 
-### Dificultad
+### Niveles de dificultad
 
-Por defecto la rejilla es pequeña (5×5, fácil). Para hacerlo más grande, edita
-en `laberinto/index.html` la línea:
+Hay un **selector de nivel** en la barra de arriba (del 1 al 99). **Cada 5
+niveles** el laberinto crece: el escenario se hace más denso (celdas más
+pequeñas, más ramificaciones) y con menos atajos.
+
+- **Nivel 1–5:** rejilla 5×5, fácil (ideal para empezar).
+- **Nivel 20:** ~14×14, reto para un adolescente.
+- **Nivel 50:** ~32×32, reto para un adulto.
+
+Al completar un laberinto, el botón **“Siguiente ▶”** pasa al nivel siguiente
+(y **“Otra vez 🔄”** repite el mismo nivel con un laberinto nuevo). El nivel de
+partida por defecto se puede cambiar en `laberinto/index.html`:
 
 ```js
-const NIVEL = { cols: 5, filas: 5 }; // sube los números para más dificultad
+let nivel = 1; // nivel inicial
 ```
 
 ## 🧩 Puzzles

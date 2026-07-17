@@ -43,7 +43,9 @@ export const JUEGOS: readonly Juego[] = [
     descripcion:
       'Traza con el dedo el camino del laberinto hasta la meta. Al llegar, ' +
       'aplausos y la palabra “¡BIEN!”. Sin prisa, sin errores ni castigos. ' +
-      'Varios temas: abejita→panal, perrito→familia, patito→piscina, gatito→comida.',
+      'Cuatro escenarios (abejita→panal, monito→plátano, ratoncito→queso, ' +
+      'patito→piscina) y niveles de dificultad: cada 5 niveles el laberinto ' +
+      'crece (nivel 20 ≈ reto de adolescente; nivel 50 ≈ reto de adulto).',
     emoji: '🐝',
     ruta: 'juegos/laberinto/index.html',
     controles: ['tactil', 'raton'],

@@ -58,6 +58,19 @@
   button.icono:active { transform: scale(.92); }
   button.icono.activo { outline: 4px solid var(--camino); background: #fff; }
 
+  /* Control de nivel */
+  #nivelCtrl { gap: 6px; }
+  .nivel-lbl { font-size: clamp(12px, 3vw, 15px); font-weight: 800; color: var(--texto); opacity: .8; }
+  button.icono.chico { padding: 8px 12px; font-size: clamp(18px, 5vw, 24px); }
+  .nivel-num {
+    width: 3.1em; text-align: center; border: none; border-radius: 14px;
+    background: var(--panel); color: var(--texto);
+    font-size: clamp(16px, 4.5vw, 22px); font-weight: 800; padding: 8px 4px;
+    box-shadow: 0 2px 6px rgba(0,0,0,.08); -moz-appearance: textfield;
+  }
+  .nivel-num::-webkit-outer-spin-button,
+  .nivel-num::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
   .escenario { position: relative; flex: 1 1 auto; min-height: 0; }
   canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 
@@ -110,6 +123,12 @@
   <header>
     <h1 class="titulo"><span class="emoji" id="tituloEmoji">🐝</span><span id="tituloTexto">Lleva la abejita al panal</span></h1>
     <div class="botones" id="temas"></div>
+    <div class="botones" id="nivelCtrl">
+      <span class="nivel-lbl">Nivel</span>
+      <button class="icono chico" id="btnNivelMenos" title="Más fácil" aria-label="Nivel más fácil">➖</button>
+      <input class="nivel-num" id="nivelNum" type="number" min="1" max="99" value="1" inputmode="numeric" aria-label="Número de nivel">
+      <button class="icono chico" id="btnNivelMas" title="Más difícil" aria-label="Nivel más difícil">➕</button>
+    </div>
     <div class="botones">
       <button class="icono" id="btnSonido" title="Sonido">🔊</button>
       <button class="icono" id="btnOtra" title="Otro laberinto">🔄</button>
@@ -122,8 +141,8 @@
       <div class="estrellas">⭐️ 🎉 ⭐️</div>
       <div class="bien">¡BIEN!</div>
       <div class="acciones">
-        <button class="grande" id="btnSiguiente">Otra vez 🔄</button>
-        <button class="grande suave" id="btnCambiar">Cambiar 🎨</button>
+        <button class="grande" id="btnSiguiente">Siguiente ▶</button>
+        <button class="grande suave" id="btnCambiar">Otra vez 🔄</button>
       </div>
     </div>
   </div>
@@ -176,7 +195,12 @@
     },
   ];
 
-  const NIVEL = { cols: 5, filas: 5 }; // Fácil por defecto (rejilla pequeña).
+  // Nivel de dificultad. Cada 5 niveles el laberinto crece (celdas más
+  // pequeñas y con más ramificaciones) y tiene menos atajos. NIVEL guarda las
+  // dimensiones actuales de la rejilla.
+  let nivel = 1;
+  let braidProb = 0.4; // atajos/bucles (más fácil); baja al subir de nivel
+  const NIVEL = { cols: 5, filas: 5 };
 
   const lienzo = document.getElementById("lienzo");
   const ctx = lienzo.getContext("2d");
@@ -186,6 +210,7 @@
   const tituloTexto = document.getElementById("tituloTexto");
   const contTemas = document.getElementById("temas");
   const btnSonido = document.getElementById("btnSonido");
+  const nivelNum = document.getElementById("nivelNum");
 
   let tema = TEMAS[0];
   let celdas = [];      // rejilla del laberinto
@@ -243,7 +268,7 @@
       for (let x = 0; x < W; x++) {
         const c = grid[y][x];
         const cerrados = ["t", "r", "b", "l"].filter((d) => c.muros[d]);
-        if (cerrados.length === 3 && Math.random() < 0.45) {
+        if (cerrados.length === 3 && Math.random() < braidProb) {
           const dirs = [];
           if (y > 0 && c.muros.t) dirs.push("t");
           if (x < W - 1 && c.muros.r) dirs.push("r");
@@ -274,6 +299,25 @@
     celebra.classList.remove("mostrar");
     pista.style.display = "";
     ajustarTamano();
+  }
+
+  // Dificultad por nivel: cada 5 niveles el escenario se hace más denso
+  // (más celdas => más pequeñas y con más caminos posibles) y con menos atajos.
+  // Curva pensada para: nivel 20 ≈ reto de adolescente; nivel 50 ≈ reto de adulto.
+  function dimsDeNivel(n) {
+    const paso = Math.floor((n - 1) / 5);        // sube cada 5 niveles
+    const d = Math.min(5 + paso * 3, 34);        // 5 → 8 → 11 → 14 … (tope 34)
+    const braid = Math.max(0, 0.4 - (n - 1) * 0.02); // menos atajos al subir
+    return { d, braid };
+  }
+
+  function aplicarNivel(n) {
+    nivel = Math.max(1, Math.min(99, Math.round(n) || 1));
+    const { d, braid } = dimsDeNivel(nivel);
+    NIVEL.cols = d; NIVEL.filas = d;
+    braidProb = braid;
+    if (nivelNum) nivelNum.value = nivel;
+    nuevoLaberinto();
   }
 
   // ¿Se puede pasar de la celda `a` a la `b` (adyacente, sin muro)?
@@ -701,11 +745,14 @@
   });
 
   document.getElementById("btnOtra").addEventListener("click", () => nuevoLaberinto());
-  document.getElementById("btnSiguiente").addEventListener("click", () => nuevoLaberinto());
-  document.getElementById("btnCambiar").addEventListener("click", () => {
-    const i = (TEMAS.indexOf(tema) + 1) % TEMAS.length;
-    aplicarTema(TEMAS[i]);
-  });
+  // Al ganar: "Siguiente ▶" sube de nivel; "Otra vez 🔄" repite el mismo nivel.
+  document.getElementById("btnSiguiente").addEventListener("click", () => aplicarNivel(nivel + 1));
+  document.getElementById("btnCambiar").addEventListener("click", () => nuevoLaberinto());
+
+  // Control de nivel en la barra superior.
+  document.getElementById("btnNivelMenos").addEventListener("click", () => aplicarNivel(nivel - 1));
+  document.getElementById("btnNivelMas").addEventListener("click", () => aplicarNivel(nivel + 1));
+  nivelNum.addEventListener("change", () => aplicarNivel(+nivelNum.value));
 
   // ------------------------------- Bucle ------------------------------------
 
@@ -766,6 +813,9 @@
       return ruta.map((c) => { const p = centro(c); return { x: r.left + p.x, y: r.top + p.y }; });
     },
     get ganado() { return ganado; },
+    get nivel() { return nivel; },
+    get dims() { return { cols: NIVEL.cols, filas: NIVEL.filas }; },
+    setNivel(n) { aplicarNivel(n); },
   };
 })();
 </script>

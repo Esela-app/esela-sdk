@@ -118,7 +118,15 @@
     padding: 14px 14px 8px; flex: 0 0 auto;
   }
   .cajon-top h2 { margin: 0; flex: 1; font-size: clamp(18px, 4.6vw, 24px); font-weight: 800; }
-  .cajon-scroll { flex: 1 1 auto; overflow-y: auto; padding: 4px 14px calc(20px + env(safe-area-inset-bottom)); -webkit-overflow-scrolling: touch; }
+  .cajon-scroll { flex: 1 1 auto; overflow-y: auto; padding: 4px 14px 8px; -webkit-overflow-scrolling: touch; }
+  .btn-aceptar {
+    flex: 0 0 auto; margin: 8px 14px calc(14px + env(safe-area-inset-bottom));
+    border: none; border-radius: 18px; padding: 15px 20px;
+    font-size: clamp(17px, 4.6vw, 22px); font-weight: 800; color: #fff;
+    background: var(--acento, #F49A1E); box-shadow: 0 4px 0 rgba(0,0,0,.15);
+    cursor: pointer; transition: transform .08s ease;
+  }
+  .btn-aceptar:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.15); }
   .seccion { margin: 6px 0 16px; }
   .seccion h3 {
     margin: 0 0 8px; font-size: 14px; font-weight: 800; letter-spacing: .02em;
@@ -195,7 +203,8 @@
   button.mini:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,.16); }
   button.mini:active { transform: scale(.96); }
   button.mini:focus-visible { outline: 4px solid var(--acento); outline-offset: 2px; }
-  button.mini canvas { display: block; width: 100%; height: auto; aspect-ratio: 1 / 1; background: #fff; }
+  button.mini canvas,
+  .mini-svg { display: block; width: 100%; height: auto; aspect-ratio: 1 / 1; background: #fff; }
   .mini-label { padding: 6px 8px; font-size: 13px; font-weight: 700; color: var(--texto); text-align: center; }
 </style>
 </head>
@@ -250,6 +259,7 @@
           <div class="rejilla-tap" id="listaTap"></div>
         </div>
       </div>
+      <button class="btn-aceptar" id="btnAceptar">Aceptar ✓</button>
     </aside>
 
     <!-- Galería de dibujos -->
@@ -433,7 +443,9 @@
   // DIBUJOS: renderizar el contorno (SVG) en la capa de LÍNEAS
   // ---------------------------------------------------------------------------
   function envolverSVG(inner) {
-    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' +
+    // width/height explícitos: sin ellos, Safari/iOS no escala el SVG al
+    // dibujarlo con drawImage y el contorno sale en blanco.
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">' +
       '<g fill="none" stroke="#141414" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round">' +
       inner + '</g></svg>';
   }
@@ -701,7 +713,6 @@
     instrumentoId = ins.id;
     marcarActivos();
     actualizarEstado();
-    cerrarHerramientas();
   }
 
   function elegirGrosor(idOIdx) {
@@ -711,7 +722,6 @@
     if (idx < 0 || idx >= GROSORES.length) return;
     grosorIdx = idx;
     marcarActivos();
-    cerrarHerramientas();
   }
 
   function elegirColor(hex) {
@@ -719,7 +729,6 @@
     crearPatron();
     marcarActivos();
     actualizarEstado();
-    cerrarHerramientas();
   }
 
   function elegirTapiz(id) {
@@ -727,7 +736,6 @@
     crearPatron();
     marcarActivos();
     actualizarEstado();
-    cerrarHerramientas();
   }
 
   // --- Construcción de los controles del cajón -------------------------------
@@ -814,18 +822,19 @@
     DIBUJOS.forEach((d, i) => {
       const card = document.createElement("button");
       card.className = "mini";
-      const c = document.createElement("canvas");
-      c.width = c.height = 200;
-      card.appendChild(c);
+      // Miniatura como SVG en línea: se renderiza igual en todos los navegadores
+      // (incluido iOS/Safari) y no depende de cargar imágenes.
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", "0 0 100 100");
+      svg.setAttribute("class", "mini-svg");
+      svg.innerHTML = '<g fill="none" stroke="#141414" stroke-width="3.6" ' +
+        'stroke-linejoin="round" stroke-linecap="round">' + d.svg + '</g>';
+      card.appendChild(svg);
       const lab = document.createElement("div");
       lab.className = "mini-label"; lab.textContent = d.nombre;
       card.appendChild(lab);
       card.addEventListener("click", () => elegirDibujo(i));
       galeriaGrid.appendChild(card);
-      const cx = c.getContext("2d");
-      const img = new Image();
-      img.onload = () => pintarContorno(img, cx);
-      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(envolverSVG(d.svg));
     });
     galeriaLista = true;
   }
@@ -876,6 +885,7 @@
   document.getElementById("btnLimpiar").addEventListener("click", limpiar);
   document.getElementById("abrirCajon").addEventListener("click", abrirHerramientas);
   document.getElementById("btnCerrarCajon").addEventListener("click", cerrarHerramientas);
+  document.getElementById("btnAceptar").addEventListener("click", cerrarHerramientas);
   velo.addEventListener("click", cerrarHerramientas);
 
   // ---------------------------------------------------------------------------

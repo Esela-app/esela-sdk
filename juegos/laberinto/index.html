@@ -266,6 +266,7 @@
   let ganado = false;
   let dibujando = false;
   let posPersonaje = null; // posición en píxeles del personaje (para deslizar)
+  let visualIdx = 0;       // celda del rastro que el personaje ha alcanzado visualmente
 
   // Geometría de pintado (se recalcula al redimensionar)
   let g = { tam: 0, offX: 0, offY: 0 };
@@ -382,6 +383,7 @@
     } while (intentos < 40 && esTrivial());
     actual = inicio;
     camino = [inicio];
+    visualIdx = 0;
     ganado = false;
     dibujando = false;
     confeti.length = 0;
@@ -678,21 +680,46 @@
 
   // ------------------------------- Interacción ------------------------------
 
+  // Ruta por el corredor entre dos celdas (BFS a través de muros abiertos).
+  function caminoEntre(a, b) {
+    if (a === b) return [a];
+    const cola = [a], previo = new Map([[a, null]]);
+    while (cola.length) {
+      const c = cola.shift();
+      if (c === b) break;
+      const vec = [];
+      if (c.y > 0) vec.push(celdas[c.y - 1][c.x]);
+      if (c.x < NIVEL.cols - 1) vec.push(celdas[c.y][c.x + 1]);
+      if (c.y < NIVEL.filas - 1) vec.push(celdas[c.y + 1][c.x]);
+      if (c.x > 0) vec.push(celdas[c.y][c.x - 1]);
+      vec.forEach((n) => { if (pasable(c, n) && !previo.has(n)) { previo.set(n, c); cola.push(n); } });
+    }
+    if (!previo.has(b)) return null;
+    const ruta = []; let cur = b;
+    while (cur) { ruta.unshift(cur); cur = previo.get(cur); }
+    return ruta;
+  }
+
+  // Da un paso del rastro hacia una celda (empuja o retrocede recortando).
+  function pasoDeCamino(c) {
+    const idx = camino.indexOf(c);
+    if (idx !== -1) camino.length = idx + 1; // retrocede / rehace
+    else camino.push(c);
+    actual = c;
+  }
+
   function intentarMover(px, py) {
     if (ganado) return;
     const destino = celdaEnPunto(px, py);
     if (!destino || destino === actual) return;
-    if (!pasable(actual, destino)) return; // hay un muro: el personaje espera
-
-    const idx = camino.indexOf(destino);
-    if (idx !== -1) {
-      // Retrocede / rehace: recorta el camino hasta esa celda.
-      camino.length = idx + 1;
-    } else {
-      camino.push(destino);
+    // El personaje SIGUE AL DEDO por el corredor: recorre la ruta desde su
+    // celda hasta la del dedo, de forma continua (no un paso por toque).
+    const ruta = caminoEntre(actual, destino);
+    if (!ruta) return; // el dedo está en una zona no conectada: espera
+    for (let k = 1; k < ruta.length; k++) {
+      pasoDeCamino(ruta[k]);
+      if (actual === meta) { ganar(); return; }
     }
-    actual = destino;
-    if (actual === meta) ganar();
   }
 
   function xy(ev) {
@@ -868,15 +895,33 @@
         if (p.y > g.alto + 40) confeti.splice(i, 1);
       }
     }
-    // Deslizamiento suave del personaje hacia su celda: en vez de saltar,
-    // persigue su destino con easing y da sensación de desplazamiento.
-    if (g.tam) {
-      const destino = centro(actual);
+    // Deslizamiento del personaje SIGUIENDO EL RASTRO celda a celda (por el
+    // corredor, sin cruzar muros): se mueve de forma continua con el dedo.
+    if (g.tam && camino.length) {
+      if (visualIdx > camino.length - 1) visualIdx = camino.length - 1;
+      if (visualIdx < 0) visualIdx = 0;
       if (!posPersonaje) {
-        posPersonaje = { x: destino.x, y: destino.y };
-      } else {
-        posPersonaje.x += (destino.x - posPersonaje.x) * 0.18;
-        posPersonaje.y += (destino.y - posPersonaje.y) * 0.18;
+        const c0 = centro(camino[visualIdx]);
+        posPersonaje = { x: c0.x, y: c0.y };
+      }
+      const atraso = (camino.length - 1) - visualIdx;
+      // Presupuesto de avance por fotograma: más rápido si el dedo va lejos.
+      let presupuesto = g.tam * (atraso > 5 ? 1.8 : atraso > 1 ? 0.8 : 0.33);
+      let guarda = 0;
+      while (presupuesto > 0 && guarda++ < 200) {
+        const obj = centro(camino[visualIdx]);
+        const dx = obj.x - posPersonaje.x, dy = obj.y - posPersonaje.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist <= presupuesto) {
+          posPersonaje.x = obj.x; posPersonaje.y = obj.y;
+          presupuesto -= dist;
+          if (visualIdx < camino.length - 1) visualIdx++;
+          else break;
+        } else {
+          posPersonaje.x += (dx / dist) * presupuesto;
+          posPersonaje.y += (dy / dist) * presupuesto;
+          presupuesto = 0;
+        }
       }
     }
     dibujar();

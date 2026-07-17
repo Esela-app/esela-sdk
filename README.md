@@ -37,9 +37,17 @@ proyectos comerciales. Apache-2.0 permite uso libre y añade protección de pate
 
 | Módulo | Estado |
 |--------|--------|
+| [Juegos](juegos/) (laberintos táctiles) | ✅ Primer juego disponible |
 | Embed del editor | 🔜 Planificado |
 | API de plugins | 🔜 Planificado |
 | Cliente de pictogramas | 🔜 Planificado |
+
+## Juegos
+
+Apartado de **juegos educativos** para peques (con especial cuidado para niñas y
+niños con autismo): sencillos, sin prisa y con refuerzo positivo. El primero es
+un **laberinto táctil** en el que se traza el camino con el dedo y, al llegar a
+la meta, salen aplausos y la palabra “¡BIEN!”. Ver [`juegos/`](juegos/).
 
 ## Contribuir
 

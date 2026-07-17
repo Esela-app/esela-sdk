@@ -42,6 +42,7 @@
     font-size: 62px; position: relative;
   }
   .p-laberinto { background: linear-gradient(160deg, #FFF3C4, #FBE08A); }
+  .p-puzzle { background: linear-gradient(160deg, #FDE9C0, #F6C97D); }
   .p-proximo { background: repeating-linear-gradient(45deg, rgba(0,0,0,.03) 0 12px, transparent 12px 24px); }
   .cuerpo { padding: 14px 16px 18px; }
   .cuerpo h2 { font-size: 20px; margin: 0 0 4px; }
@@ -82,14 +83,20 @@
         </div>
       </a>
 
-      <div class="tarjeta proximo" aria-disabled="true">
-        <div class="portada p-proximo">🧩</div>
+      <a class="tarjeta" href="puzzle/index.html">
+        <div class="portada p-puzzle">🧩</div>
         <div class="cuerpo">
-          <span class="etiqueta et-pronto">🔜 Próximamente</span>
+          <span class="etiqueta et-listo">✅ Disponible</span>
           <h2>Puzzles</h2>
-          <p>Encajar piezas y formas. A la espera de los que nos vayas pidiendo.</p>
+          <p>Arrastra las piezas a su sitio: encajan solas y con calma. Nº de
+            piezas ajustable (6, 12, 20, 35). Al completarlo: aplausos y “¡BIEN!”.</p>
+          <div class="habilidades">
+            <span class="chip">percepción visual</span>
+            <span class="chip">encaje de formas</span>
+            <span class="chip">motricidad fina</span>
+          </div>
         </div>
-      </div>
+      </a>
 
       <div class="tarjeta proximo" aria-disabled="true">
         <div class="portada p-proximo">🔢</div>

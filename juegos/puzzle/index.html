@@ -1,0 +1,994 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#F49A1E">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Puzzles">
+<meta name="application-name" content="Puzzles">
+<title>Puzzles · Esela</title>
+<!-- App a pantalla completa: se puede "Añadir a pantalla de inicio" en la tablet. -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<style>
+  :root {
+    --fondo: #FFFDF5;
+    --suelo: #FFF8E1;
+    --pared: #F6B93B;
+    --camino: #F9A826;
+    --texto: #5B4636;
+    --panel: rgba(255,255,255,0.85);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    overflow: hidden; overscroll-behavior: none;
+    background: var(--fondo);
+    color: var(--texto);
+    font-family: -apple-system, "Segoe UI", Roboto, "Comic Sans MS", system-ui, sans-serif;
+    -webkit-user-select: none; user-select: none;
+    touch-action: none;
+  }
+  #app { position: fixed; inset: 0; display: flex; flex-direction: column; }
+
+  header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px calc(6px + env(safe-area-inset-top)) 12px;
+    flex-wrap: wrap;
+  }
+  .titulo {
+    font-size: clamp(18px, 4.5vw, 30px);
+    font-weight: 800; margin: 0; flex: 1 1 auto;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .titulo .emoji { font-size: 1.2em; }
+
+  .botones { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  button.icono {
+    border: none; background: var(--panel);
+    border-radius: 18px; padding: 10px 14px;
+    font-size: clamp(22px, 6vw, 32px); line-height: 1;
+    box-shadow: 0 2px 6px rgba(0,0,0,.08);
+    cursor: pointer; transition: transform .08s ease;
+  }
+  button.icono:active { transform: scale(.92); }
+  button.icono.activo { outline: 4px solid var(--camino); background: #fff; }
+
+  /* Selector de nº de piezas: botoncitos redondeados con el número dentro. */
+  button.preset {
+    border: none; background: var(--panel);
+    border-radius: 16px; padding: 8px 12px;
+    font-size: clamp(15px, 4vw, 20px); font-weight: 800; line-height: 1;
+    color: var(--texto);
+    box-shadow: 0 2px 6px rgba(0,0,0,.08);
+    cursor: pointer; transition: transform .08s ease;
+    min-width: 44px;
+  }
+  button.preset:active { transform: scale(.92); }
+  button.preset.activo { outline: 4px solid var(--camino); background: #fff; }
+
+  .escenario { position: relative; flex: 1 1 auto; min-height: 0; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+  /* Cartel de "¡BIEN!" */
+  #celebra {
+    position: absolute; inset: 0;
+    display: none; align-items: center; justify-content: center;
+    flex-direction: column; gap: 18px;
+    background: rgba(255,253,245,0.55);
+    z-index: 5;
+  }
+  #celebra.mostrar { display: flex; }
+  .bien {
+    font-size: clamp(70px, 22vw, 190px);
+    font-weight: 900; color: var(--camino);
+    text-shadow: 0 6px 0 #fff, 0 10px 24px rgba(249,168,38,.45);
+    animation: rebote .6s cubic-bezier(.2,1.4,.4,1) both;
+    letter-spacing: .02em;
+  }
+  @keyframes rebote {
+    0% { transform: scale(.2) rotate(-8deg); opacity: 0; }
+    60% { transform: scale(1.15) rotate(3deg); }
+    100% { transform: scale(1) rotate(0); opacity: 1; }
+  }
+  .estrellas { font-size: clamp(30px, 9vw, 64px); animation: pulso 1s ease-in-out infinite; }
+  @keyframes pulso { 0%,100%{ transform: scale(1);} 50%{ transform: scale(1.15);} }
+  .acciones { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+  button.grande {
+    border: none; border-radius: 24px;
+    padding: 16px 26px; font-size: clamp(18px, 5vw, 26px);
+    font-weight: 800; color: #fff; background: var(--camino);
+    box-shadow: 0 4px 0 rgba(0,0,0,.12); cursor: pointer;
+    transition: transform .08s ease;
+  }
+  button.grande:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.12); }
+  button.grande.suave { background: #fff; color: var(--texto); }
+
+  .pista {
+    position: absolute; left: 50%; bottom: calc(10px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    background: var(--panel); border-radius: 16px;
+    padding: 8px 16px; font-size: clamp(14px, 3.6vw, 18px);
+    font-weight: 600; box-shadow: 0 2px 6px rgba(0,0,0,.08);
+    pointer-events: none; opacity: .9;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1 class="titulo"><span class="emoji">🧩</span><span>Puzzles</span></h1>
+    <div class="botones" id="presets"></div>
+    <div class="botones">
+      <button class="icono" id="btnGuia" title="Mostrar/ocultar la ayuda">👁️</button>
+      <button class="icono" id="btnSonido" title="Sonido">🔊</button>
+      <button class="icono" id="btnCambiarTop" title="Cambiar imagen">🎨</button>
+      <button class="icono" id="btnOtra" title="Rebarajar">🔄</button>
+    </div>
+  </header>
+  <div class="escenario">
+    <canvas id="lienzo"></canvas>
+    <div class="pista" id="pista">Arrastra las piezas a su sitio 🧩</div>
+    <div id="celebra">
+      <div class="estrellas">⭐️ 🎉 ⭐️</div>
+      <div class="bien">¡BIEN!</div>
+      <div class="acciones">
+        <button class="grande" id="btnSiguiente">Otra vez 🔄</button>
+        <button class="grande suave" id="btnCambiar">Cambiar 🎨</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ===========================================================================
+  // Esela · Juego de PUZZLES (rompecabezas tipo jigsaw) táctil para peques
+  // Sin dependencias. Funciona sin conexión abriendo este archivo en la tablet.
+  //
+  // Diseño pensado para niñas y niños con autismo (hermano del laberinto):
+  //   · Sin prisa, sin "game over", sin castigos ni sonidos negativos.
+  //   · Al soltar una pieza cerca de su sitio, ENCAJA SOLA (umbral generoso).
+  //     Si se suelta lejos, se queda donde está: no pasa nada malo.
+  //   · Guía tenue (fantasma de la imagen) para ayudar a colocar.
+  //   · Piezas ya colocadas quedan fijas.
+  //   · Refuerzo positivo claro al terminar: aplausos + confeti + "¡BIEN!".
+  // ===========================================================================
+
+  // --- CONFIGURACIÓN PRINCIPAL ----------------------------------------------
+
+  // Nº de piezas por defecto. A partir de este número y de la proporción de la
+  // imagen se calcula la rejilla (filas × columnas) lo más cuadrada posible.
+  // Cámbialo aquí para fijar otro valor de arranque (los presets de la barra
+  // superior también lo cambian sin tocar el código).
+  const NUM_PIEZAS = 20;
+
+  // Presets rápidos que aparecen como botones en la barra superior.
+  const PRESETS = [6, 12, 20, 35];
+
+  // Wallpapers de Esela. Pega aquí las URLs de las imágenes colgadas en
+  // esela.app (una por línea). Si el array está vacío —o si una imagen falla al
+  // cargar (p. ej. sin conexión)— se usan las imágenes de RESERVA dibujadas por
+  // código (los cuatro escenarios del laberinto: panal, jungla, cueva, piscina).
+  //
+  // Nota técnica: solo se dibujan con drawImage (nunca se leen los píxeles con
+  // getImageData), por eso no hay problemas de "canvas tainted" aunque la
+  // imagen venga de otro dominio. Aun así pedimos crossOrigin = "anonymous".
+  const WALLPAPERS_ESELA = [
+    // "https://esela.app/wallpapers/panal.png",
+    // "https://esela.app/wallpapers/jungla.png",
+    // ...
+  ];
+
+  // --- Elementos de la interfaz ---------------------------------------------
+
+  const lienzo = document.getElementById("lienzo");
+  const ctx = lienzo.getContext("2d");
+  const celebra = document.getElementById("celebra");
+  const pista = document.getElementById("pista");
+  const contPresets = document.getElementById("presets");
+  const btnGuia = document.getElementById("btnGuia");
+  const btnSonido = document.getElementById("btnSonido");
+
+  // --- Estado ---------------------------------------------------------------
+
+  let numPiezas = NUM_PIEZAS;   // nº objetivo actual (lo cambian los presets)
+  let indiceImagen = 0;         // qué imagen se está usando
+  let imagen = null;            // fuente de dibujo actual (Image o canvas)
+  let imgW = 4, imgH = 3;       // dimensiones naturales de la imagen
+  let filas = 4, cols = 5;      // rejilla calculada
+  let piezas = [];              // todas las piezas
+  let ordenSueltas = [];        // índices de piezas no colocadas (orden de dibujo)
+  let arrastrando = null;       // pieza que se está arrastrando
+  let desfase = { x: 0, y: 0 }; // offset del dedo respecto a la esquina de la pieza
+  let ganado = false;
+  let mostrarGuia = true;
+
+  // Geometría del tablero (se recalcula al redimensionar).
+  let geo = { w: 0, h: 0, boardX: 0, boardY: 0, boardW: 0, boardH: 0, pW: 0, pH: 0 };
+
+  // Sonido
+  let sonidoActivo = true;
+  let audio = null;
+  const confeti = [];
+
+  // ---------------------------------------------------------------------------
+  // GEOMETRÍA DE LAS PIEZAS (bordes entrelazados dibujados por código)
+  // ---------------------------------------------------------------------------
+
+  // Perfil de una lengüeta/pestaña de puzzle, en coordenadas normalizadas
+  // (t = a lo largo del borde 0→1 ; w = saliente perpendicular). El pequeño
+  // "cuello" (t vuelve hacia atrás) da el aspecto de pestaña clásica.
+  const PERFIL_LENGUETA = [
+    [0.00, 0.00], [0.34, 0.00],
+    [0.36, 0.04], [0.30, 0.10], [0.30, 0.16],
+    [0.40, 0.205], [0.50, 0.22], [0.60, 0.205],
+    [0.70, 0.16], [0.70, 0.10], [0.64, 0.04],
+    [0.66, 0.00], [1.00, 0.00],
+  ];
+
+  // Suaviza una lista de puntos con Catmull-Rom (curva que pasa por ellos).
+  function suavizar(pts, porTramo) {
+    if (pts.length < 3) return pts.slice();
+    const res = [];
+    const P = [pts[0], ...pts, pts[pts.length - 1]];
+    for (let i = 1; i < P.length - 2; i++) {
+      const p0 = P[i - 1], p1 = P[i], p2 = P[i + 1], p3 = P[i + 2];
+      for (let s = 0; s < porTramo; s++) {
+        const t = s / porTramo, t2 = t * t, t3 = t2 * t;
+        res.push({
+          x: 0.5 * ((2 * p1.x) + (-p0.x + p2.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
+          y: 0.5 * ((2 * p1.y) + (-p0.y + p2.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3),
+        });
+      }
+    }
+    res.push(pts[pts.length - 1]);
+    return res;
+  }
+
+  // Puntos de un borde de A a B. sign = 0 → recto (borde exterior);
+  // sign = ±1 → lengüeta hacia un lado u otro. Dos piezas vecinas comparten el
+  // MISMO array (una lo usa al derecho y la otra al revés), así encajan exacto.
+  function bordePuntos(ax, ay, bx, by, sign) {
+    const dx = bx - ax, dy = by - ay, L = Math.hypot(dx, dy);
+    if (!sign || L === 0) return [{ x: ax, y: ay }, { x: bx, y: by }];
+    const nx = -dy / L, ny = dx / L; // normal unitaria
+    const ctrl = PERFIL_LENGUETA.map(([t, w]) => ({
+      x: ax + dx * t + nx * sign * w * L,
+      y: ay + dy * t + ny * sign * w * L,
+    }));
+    return suavizar(ctrl, 6);
+  }
+
+  // Construye toda la rejilla de piezas para la imagen actual.
+  function construirPuzzle() {
+    calcularRejilla();
+    disponerTablero();
+
+    const pW = geo.boardW / cols, pH = geo.boardH / filas;
+
+    // Signos aleatorios de los bordes interiores (compartidos por vecinos).
+    // vSign[r][c] = borde vertical entre la columna c y c+1 (c: 0..cols-2)
+    // hSign[r][c] = borde horizontal entre la fila r y r+1 (r: 0..filas-2)
+    const vSign = [], hSign = [];
+    for (let r = 0; r < filas; r++) {
+      vSign[r] = [];
+      for (let c = 0; c < cols - 1; c++) vSign[r][c] = Math.random() < 0.5 ? -1 : 1;
+    }
+    for (let r = 0; r < filas - 1; r++) {
+      hSign[r] = [];
+      for (let c = 0; c < cols; c++) hSign[r][c] = Math.random() < 0.5 ? -1 : 1;
+    }
+
+    // Puntos de cada borde interior, en coordenadas del tablero armado
+    // (0,0 = esquina superior izquierda del tablero).
+    const vEdge = [], hEdge = [];
+    for (let r = 0; r < filas; r++) {
+      vEdge[r] = [];
+      for (let c = 0; c < cols - 1; c++) {
+        const x = (c + 1) * pW;
+        vEdge[r][c] = bordePuntos(x, r * pH, x, (r + 1) * pH, vSign[r][c]); // arriba→abajo
+      }
+    }
+    for (let r = 0; r < filas - 1; r++) {
+      hEdge[r] = [];
+      for (let c = 0; c < cols; c++) {
+        const y = (r + 1) * pH;
+        hEdge[r][c] = bordePuntos(c * pW, y, (c + 1) * pW, y, hSign[r][c]); // izq→der
+      }
+    }
+
+    const rev = (a) => a.slice().reverse();
+
+    piezas = [];
+    for (let r = 0; r < filas; r++) {
+      for (let c = 0; c < cols; c++) {
+        const TL = { x: c * pW, y: r * pH };
+        const TR = { x: (c + 1) * pW, y: r * pH };
+        const BR = { x: (c + 1) * pW, y: (r + 1) * pH };
+        const BL = { x: c * pW, y: (r + 1) * pH };
+
+        const top = r === 0 ? [TL, TR] : hEdge[r - 1][c];              // izq→der
+        const right = c === cols - 1 ? [TR, BR] : vEdge[r][c];          // arriba→abajo
+        const bottom = r === filas - 1 ? [BR, BL] : rev(hEdge[r][c]);   // der→izq
+        const left = c === 0 ? [BL, TL] : rev(vEdge[r][c - 1]);         // abajo→arriba
+
+        // Concatenar el contorno (evitando duplicar los vértices compartidos).
+        const abs = [];
+        const empujar = (arr) => {
+          for (const p of arr) {
+            const u = abs[abs.length - 1];
+            if (u && Math.abs(u.x - p.x) < 1e-6 && Math.abs(u.y - p.y) < 1e-6) continue;
+            abs.push({ x: p.x, y: p.y });
+          }
+        };
+        empujar(top); empujar(right); empujar(bottom); empujar(left);
+
+        // Coordenadas locales de la pieza (origen = esquina de su celda; las
+        // pestañas sobresalen a valores negativos o > pW/pH).
+        const ox = c * pW, oy = r * pH;
+        const local = abs.map((p) => ({ x: p.x - ox, y: p.y - oy }));
+
+        piezas.push({
+          r, c,
+          local,                 // polígono del contorno (para dibujar y para el "hit test")
+          homeX: geo.boardX + ox, // sitio correcto (esquina de celda) en pantalla
+          homeY: geo.boardY + oy,
+          x: 0, y: 0,            // posición actual (esquina de celda) en pantalla
+          colocada: false,
+        });
+      }
+    }
+
+    barajar();
+    ganado = false;
+    confeti.length = 0;
+    celebra.classList.remove("mostrar");
+    pista.style.display = "";
+    marcarPresetActivo();
+  }
+
+  // Reparte las piezas barajadas por los márgenes, sin castigar los solapes.
+  function barajar() {
+    const { w, h, pW, pH } = geo;
+    const pad = Math.min(w, h) * 0.02 + 6;
+    for (const p of piezas) {
+      p.colocada = false;
+      let x = 0, y = 0;
+      // Intenta dejarlas fuera del tablero (para no tapar el fantasma).
+      for (let intento = 0; intento < 10; intento++) {
+        x = pad + Math.random() * Math.max(1, w - pW - 2 * pad);
+        y = pad + Math.random() * Math.max(1, h - pH - 2 * pad);
+        const cx = x + pW / 2, cy = y + pH / 2;
+        const dentro = cx > geo.boardX - pW * 0.3 && cx < geo.boardX + geo.boardW + pW * 0.3 &&
+                       cy > geo.boardY - pH * 0.3 && cy < geo.boardY + geo.boardH + pH * 0.3;
+        if (!dentro) break;
+      }
+      p.x = x; p.y = y;
+    }
+    ordenSueltas = piezas.map((_, i) => i);
+    // Un pelín de mezcla en el orden de dibujo (montón desordenado natural).
+    for (let i = ordenSueltas.length - 1; i > 0; i--) {
+      const j = (Math.random() * (i + 1)) | 0;
+      [ordenSueltas[i], ordenSueltas[j]] = [ordenSueltas[j], ordenSueltas[i]];
+    }
+  }
+
+  // Rejilla filas×cols lo más cuadrada posible para el nº de piezas y la
+  // proporción de la imagen.
+  function calcularRejilla() {
+    const aspecto = imgW / imgH;
+    let mejor = null;
+    for (let r = 1; r <= numPiezas; r++) {
+      for (let c = Math.max(1, Math.floor(numPiezas / r)); c <= Math.ceil(numPiezas / r) + 1; c++) {
+        const prod = r * c;
+        const err = Math.abs((c / r) - aspecto) + Math.abs(prod - numPiezas) * 0.18;
+        if (!mejor || err < mejor.err) mejor = { r, c, err };
+      }
+    }
+    filas = mejor.r; cols = mejor.c;
+  }
+
+  // Calcula el rectángulo del tablero centrado, dejando margen para el montón.
+  function disponerTablero() {
+    const rect = lienzo.parentElement.getBoundingClientRect();
+    geo.w = rect.width; geo.h = rect.height;
+    const availW = rect.width * 0.9;
+    const availH = rect.height * 0.7;
+    const aspecto = imgW / imgH;
+    let bw = availW, bh = bw / aspecto;
+    if (bh > availH) { bh = availH; bw = bh * aspecto; }
+    geo.boardW = bw; geo.boardH = bh;
+    geo.boardX = (rect.width - bw) / 2;
+    geo.boardY = (rect.height - bh) * 0.42;
+    geo.pW = bw / cols; geo.pH = bh / filas;
+  }
+
+  // ---------------------------------------------------------------------------
+  // LIENZO A ALTA RESOLUCIÓN
+  // ---------------------------------------------------------------------------
+
+  function ajustarLienzo() {
+    const rect = lienzo.parentElement.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    lienzo.width = Math.max(1, Math.round(rect.width * dpr));
+    lienzo.height = Math.max(1, Math.round(rect.height * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  // Reajuste al cambiar el tamaño: recoloca respetando lo ya colocado.
+  function alRedimensionar() {
+    const antes = { w: geo.w, h: geo.h, bx: geo.boardX, by: geo.boardY };
+    ajustarLienzo();
+    disponerTablero();
+    if (!piezas.length) return;
+    const pW = geo.boardW / cols, pH = geo.boardH / filas;
+    const sx = antes.w ? geo.w / antes.w : 1;
+    const sy = antes.h ? geo.h / antes.h : 1;
+    for (const p of piezas) {
+      p.homeX = geo.boardX + p.c * pW;
+      p.homeY = geo.boardY + p.r * pH;
+      if (p.colocada) { p.x = p.homeX; p.y = p.homeY; }
+      else { p.x *= sx; p.y *= sy; }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // DIBUJO
+  // ---------------------------------------------------------------------------
+
+  function trazarContorno(p) {
+    const pts = p.local;
+    ctx.beginPath();
+    ctx.moveTo(p.x + pts[0].x, p.y + pts[0].y);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(p.x + pts[i].x, p.y + pts[i].y);
+    ctx.closePath();
+  }
+
+  // Dibuja una pieza en su posición actual (recorta su forma y pinta la región
+  // correspondiente de la imagen completa escalada al tablero).
+  function dibujarPieza(p, conSombra) {
+    const ox = p.c * (geo.boardW / cols);
+    const oy = p.r * (geo.boardH / filas);
+    ctx.save();
+    if (conSombra) {
+      ctx.shadowColor = "rgba(0,0,0,0.22)";
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetY = 4;
+    }
+    trazarContorno(p);
+    if (conSombra) { ctx.fillStyle = "#fff"; ctx.fill(); } // base para que la sombra se vea
+    ctx.restore();
+
+    ctx.save();
+    trazarContorno(p);
+    ctx.clip();
+    // La imagen completa, escalada al tablero, colocada de modo que asome la
+    // región de esta pieza.
+    ctx.drawImage(imagen, p.x - ox, p.y - oy, geo.boardW, geo.boardH);
+    ctx.restore();
+
+    // Borde suave para dar definición a la pieza.
+    ctx.save();
+    trazarContorno(p);
+    ctx.strokeStyle = p.colocada ? "rgba(255,255,255,0.55)" : "rgba(91,70,54,0.35)";
+    ctx.lineWidth = p.colocada ? 1 : 1.5;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function dibujar() {
+    if (!geo.w) return;
+    ctx.clearRect(0, 0, geo.w, geo.h);
+
+    // Fondo cálido muy suave.
+    ctx.fillStyle = "#FFF8E1";
+    ctx.fillRect(0, 0, geo.w, geo.h);
+
+    // Marco del tablero + guía tenue (fantasma de la imagen).
+    ctx.save();
+    rr(geo.boardX - 8, geo.boardY - 8, geo.boardW + 16, geo.boardH + 16, 22);
+    ctx.fillStyle = "rgba(255,255,255,0.7)";
+    ctx.fill();
+    ctx.restore();
+
+    if (mostrarGuia && imagen) {
+      ctx.save();
+      ctx.globalAlpha = 0.26;
+      ctx.drawImage(imagen, geo.boardX, geo.boardY, geo.boardW, geo.boardH);
+      ctx.restore();
+    }
+
+    // Contorno tenue del tablero.
+    ctx.save();
+    rr(geo.boardX, geo.boardY, geo.boardW, geo.boardH, 12);
+    ctx.strokeStyle = "rgba(91,70,54,0.18)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
+
+    // Piezas ya colocadas (fijas, forman la imagen).
+    for (const p of piezas) if (p.colocada) dibujarPieza(p, false);
+
+    // Piezas sueltas (montón), la que se arrastra va la última (encima).
+    for (const i of ordenSueltas) {
+      const p = piezas[i];
+      if (p === arrastrando) continue;
+      dibujarPieza(p, true);
+    }
+    if (arrastrando) dibujarPieza(arrastrando, true);
+
+    // Confeti al ganar.
+    if (confeti.length) {
+      confeti.forEach((p) => {
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s);
+        ctx.restore();
+      });
+    }
+  }
+
+  function rr(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function emoji(cx, ch, x, y, size) {
+    cx.font = `${size}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
+    cx.textAlign = "center";
+    cx.textBaseline = "middle";
+    cx.fillText(ch, x, y);
+  }
+
+  // ---------------------------------------------------------------------------
+  // IMÁGENES: wallpapers de Esela + RESERVA offline (los 4 escenarios)
+  // ---------------------------------------------------------------------------
+
+  // Cada reserva pinta una escena completa en un canvas offscreen y sirve como
+  // origen del puzzle (se usa solo con drawImage). Reutilizan los escenarios
+  // del laberinto para que al peque le resulten familiares.
+  const RESERVAS = [
+    { nombre: "panal", dibujar: escenaPanal },
+    { nombre: "jungla", dibujar: escenaJungla },
+    { nombre: "cueva", dibujar: escenaCueva },
+    { nombre: "piscina", dibujar: escenaPiscina },
+  ];
+
+  // Lista de fuentes: si hay wallpapers, se usan (con una reserva por si fallan);
+  // si no, se usan directamente las cuatro reservas.
+  function construirFuentes() {
+    if (WALLPAPERS_ESELA.length) {
+      return WALLPAPERS_ESELA.map((url, i) => ({ tipo: "url", url, reserva: RESERVAS[i % RESERVAS.length] }));
+    }
+    return RESERVAS.map((r) => ({ tipo: "reserva", reserva: r }));
+  }
+  let fuentes = construirFuentes();
+
+  function hash(n) { const s = Math.sin(n * 127.1) * 43758.5453; return s - Math.floor(s); }
+
+  // Dibuja una reserva en un canvas offscreen (proporción 4:3) y lo devuelve.
+  function lienzoReserva(reserva) {
+    const W = 1200, H = 900;
+    const off = document.createElement("canvas");
+    off.width = W; off.height = H;
+    reserva.dibujar(off.getContext("2d"), W, H);
+    return { src: off, w: W, h: H };
+  }
+
+  // Carga la imagen del índice dado. Devuelve una promesa con {src,w,h}.
+  function cargarImagen(indice) {
+    const f = fuentes[((indice % fuentes.length) + fuentes.length) % fuentes.length];
+    if (f.tipo === "reserva") return Promise.resolve(lienzoReserva(f.reserva));
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      let listo = false;
+      img.onload = () => {
+        if (listo) return; listo = true;
+        if (img.naturalWidth && img.naturalHeight) resolve({ src: img, w: img.naturalWidth, h: img.naturalHeight });
+        else resolve(lienzoReserva(f.reserva));
+      };
+      img.onerror = () => { if (!listo) { listo = true; resolve(lienzoReserva(f.reserva)); } };
+      img.src = f.url;
+    });
+  }
+
+  // --- Escenas de reserva (adaptadas de los tapices del laberinto) -----------
+
+  function cielo(cx, w, h, c0, c1) {
+    const g = cx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, c0); g.addColorStop(1, c1);
+    cx.fillStyle = g; cx.fillRect(0, 0, w, h);
+  }
+
+  function escenaPanal(cx, w, h) {
+    cielo(cx, w, h, "#FFF3C4", "#FBE08A");
+    cx.save();
+    cx.globalAlpha = 0.14; cx.strokeStyle = "#C98A1E"; cx.lineWidth = 4;
+    const r = w * 0.06;
+    for (let j = -1; j < 12; j++) {
+      for (let i = -1; i < 12; i++) {
+        const cxp = i * r * 1.7 + (j % 2 ? r * 0.85 : 0);
+        const cyp = j * r * 1.5;
+        hexagono(cx, cxp, cyp, r * 0.9);
+      }
+    }
+    cx.restore();
+    cx.save();
+    cx.globalAlpha = 0.6; cx.fillStyle = "#FFF6D0";
+    cx.beginPath(); cx.arc(w * 0.82, h * 0.16, w * 0.1, 0, 7); cx.fill();
+    cx.restore();
+    emoji(cx, "🍯", w * 0.68, h * 0.66, w * 0.26);
+    emoji(cx, "🐝", w * 0.34, h * 0.44, w * 0.28);
+  }
+
+  function hexagono(cx, cxp, cyp, r) {
+    cx.beginPath();
+    for (let k = 0; k < 6; k++) {
+      const a = Math.PI / 180 * (60 * k - 30);
+      const x = cxp + r * Math.cos(a), y = cyp + r * Math.sin(a);
+      k === 0 ? cx.moveTo(x, y) : cx.lineTo(x, y);
+    }
+    cx.closePath(); cx.stroke();
+  }
+
+  function escenaJungla(cx, w, h) {
+    cielo(cx, w, h, "#CDECBF", "#8AC793");
+    cx.save();
+    cx.globalAlpha = 0.22; cx.fillStyle = "#5FA76B";
+    for (let i = 0; i < 12; i++) {
+      const x = hash(i + 1) * w, y = hash(i + 20) * h;
+      const s = (0.6 + hash(i + 5)) * w * 0.16;
+      cx.save(); cx.translate(x, y); cx.rotate(hash(i + 9) * 6.28);
+      cx.beginPath(); cx.ellipse(0, 0, s, s * 0.42, 0, 0, 7); cx.fill();
+      cx.restore();
+    }
+    cx.restore();
+    cx.save();
+    cx.globalAlpha = 0.14; cx.strokeStyle = "#FFFBE0"; cx.lineWidth = w * 0.05;
+    for (let i = 0; i < 5; i++) {
+      cx.beginPath(); cx.moveTo(w * (0.1 + i * 0.22), -10); cx.lineTo(w * (0.02 + i * 0.22), h); cx.stroke();
+    }
+    cx.restore();
+    emoji(cx, "🍌", w * 0.7, h * 0.62, w * 0.24);
+    emoji(cx, "🐵", w * 0.33, h * 0.46, w * 0.3);
+  }
+
+  function escenaCueva(cx, w, h) {
+    cielo(cx, w, h, "#5A5480", "#332E4C");
+    cx.save();
+    cx.globalAlpha = 0.4; cx.fillStyle = "#413B60";
+    for (let i = 0; i < 12; i++) {
+      const x = (i + 0.5) * (w / 12);
+      const largo = (0.5 + hash(i + 3)) * h * 0.2;
+      const ancho = w * 0.04;
+      cx.beginPath();
+      cx.moveTo(x - ancho, 0); cx.lineTo(x + ancho, 0); cx.lineTo(x, largo);
+      cx.closePath(); cx.fill();
+    }
+    cx.restore();
+    const rg = cx.createRadialGradient(w / 2, h / 2, 10, w / 2, h / 2, w * 0.7);
+    rg.addColorStop(0, "rgba(255,225,150,0.2)");
+    rg.addColorStop(1, "rgba(255,225,150,0)");
+    cx.fillStyle = rg; cx.fillRect(0, 0, w, h);
+    cx.save(); cx.globalAlpha = 0.6; cx.fillStyle = "#DCD6FF";
+    for (let i = 0; i < 40; i++) {
+      const x = hash(i + 2) * w, y = hash(i + 40) * h, s = 1 + hash(i + 7) * 3.5;
+      cx.beginPath(); cx.arc(x, y, s, 0, 7); cx.fill();
+    }
+    cx.restore();
+    emoji(cx, "🧀", w * 0.68, h * 0.64, w * 0.24);
+    emoji(cx, "🐭", w * 0.34, h * 0.46, w * 0.28);
+  }
+
+  function escenaPiscina(cx, w, h) {
+    cielo(cx, w, h, "#CBEBFF", "#8CC7F0");
+    cx.save();
+    cx.globalAlpha = 0.2; cx.strokeStyle = "#FFFFFF"; cx.lineWidth = 5; cx.lineCap = "round";
+    for (let j = 0; j < 10; j++) {
+      const y = h * (0.1 + j * 0.09);
+      cx.beginPath();
+      for (let x = 0; x <= w; x += 12) {
+        const yy = y + Math.sin((x / w) * 12 + j) * 8;
+        x === 0 ? cx.moveTo(x, yy) : cx.lineTo(x, yy);
+      }
+      cx.stroke();
+    }
+    cx.restore();
+    cx.save(); cx.globalAlpha = 0.45; cx.fillStyle = "#EAF6FF";
+    for (let i = 0; i < 22; i++) {
+      const x = hash(i + 11) * w, y = hash(i + 33) * h, s = 3 + hash(i + 6) * 7;
+      cx.beginPath(); cx.arc(x, y, s, 0, 7); cx.fill();
+    }
+    cx.restore();
+    emoji(cx, "🌊", w * 0.68, h * 0.66, w * 0.24);
+    emoji(cx, "🦆", w * 0.35, h * 0.48, w * 0.3);
+  }
+
+  // ---------------------------------------------------------------------------
+  // INTERACCIÓN (táctil + ratón mediante Pointer Events)
+  // ---------------------------------------------------------------------------
+
+  function xy(ev) {
+    const r = lienzo.getBoundingClientRect();
+    return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+  }
+
+  // ¿El punto (mx,my) está dentro del contorno de la pieza p?
+  function dentroDePieza(p, mx, my) {
+    const lx = mx - p.x, ly = my - p.y;
+    const pts = p.local;
+    let dentro = false;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      const xi = pts[i].x, yi = pts[i].y, xj = pts[j].x, yj = pts[j].y;
+      if (((yi > ly) !== (yj > ly)) && (lx < (xj - xi) * (ly - yi) / (yj - yi) + xi)) dentro = !dentro;
+    }
+    return dentro;
+  }
+
+  function piezaEnPunto(mx, my) {
+    // De arriba (última dibujada) hacia abajo.
+    for (let k = ordenSueltas.length - 1; k >= 0; k--) {
+      const p = piezas[ordenSueltas[k]];
+      if (dentroDePieza(p, mx, my)) return p;
+    }
+    return null;
+  }
+
+  lienzo.addEventListener("pointerdown", (ev) => {
+    ev.preventDefault();
+    prepararAudio();
+    if (ganado) return;
+    const m = xy(ev);
+    const p = piezaEnPunto(m.x, m.y);
+    if (!p) return;
+    arrastrando = p;
+    desfase.x = m.x - p.x;
+    desfase.y = m.y - p.y;
+    // Traer al frente en el orden de dibujo.
+    const idx = piezas.indexOf(p);
+    ordenSueltas = ordenSueltas.filter((i) => i !== idx);
+    ordenSueltas.push(idx);
+    lienzo.setPointerCapture?.(ev.pointerId);
+  });
+
+  lienzo.addEventListener("pointermove", (ev) => {
+    if (!arrastrando) return;
+    ev.preventDefault();
+    const m = xy(ev);
+    arrastrando.x = m.x - desfase.x;
+    arrastrando.y = m.y - desfase.y;
+  });
+
+  function soltar(ev) {
+    if (!arrastrando) return;
+    if (ev) ev.preventDefault();
+    const p = arrastrando;
+    arrastrando = null;
+    // Umbral GENEROSO: si está cerca de su sitio, encaja sola.
+    const umbral = Math.min(geo.pW, geo.pH) * 0.42;
+    if (Math.abs(p.x - p.homeX) < umbral && Math.abs(p.y - p.homeY) < umbral) {
+      p.x = p.homeX; p.y = p.homeY; p.colocada = true;
+      const idx = piezas.indexOf(p);
+      ordenSueltas = ordenSueltas.filter((i) => i !== idx);
+      colocarSonido();
+      comprobarVictoria();
+    }
+    // Si está lejos, se queda donde está (sin castigo).
+  }
+  lienzo.addEventListener("pointerup", soltar);
+  lienzo.addEventListener("pointercancel", soltar);
+
+  function comprobarVictoria() {
+    if (ganado) return;
+    if (piezas.every((p) => p.colocada)) ganar();
+  }
+
+  // ---------------------------------------------------------------------------
+  // GANAR + celebración (idéntica al laberinto)
+  // ---------------------------------------------------------------------------
+
+  function ganar() {
+    if (ganado) return;
+    ganado = true;
+    arrastrando = null;
+    pista.style.display = "none";
+    celebra.classList.add("mostrar");
+    lanzarConfeti();
+    aplausos();
+    hablar();
+  }
+
+  function lanzarConfeti() {
+    const colores = ["#F9A826", "#4CAF7D", "#4FA3E3", "#E36BA0", "#FDD835", "#FF7043"];
+    for (let i = 0; i < 120; i++) {
+      confeti.push({
+        x: geo.w * (0.2 + Math.random() * 0.6),
+        y: geo.h * 0.15 + Math.random() * 40,
+        vx: (Math.random() - 0.5) * 4,
+        vy: 2 + Math.random() * 4,
+        s: 6 + Math.random() * 8,
+        rot: Math.random() * 6.28,
+        vr: (Math.random() - 0.5) * 0.3,
+        color: colores[(Math.random() * colores.length) | 0],
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // SONIDO (WebAudio sintetizado; nada negativo)
+  // ---------------------------------------------------------------------------
+
+  function prepararAudio() {
+    if (!audio) {
+      try {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (AC) audio = new AC();
+      } catch (e) { audio = null; }
+    }
+    if (audio && audio.state === "suspended") audio.resume();
+  }
+
+  // Tono suave y agradable al encajar una pieza (refuerzo calmado).
+  function colocarSonido() {
+    if (!sonidoActivo || !audio) return;
+    const t = audio.currentTime;
+    const o = audio.createOscillator(); o.type = "sine"; o.frequency.value = 660;
+    const g = audio.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.14, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+    o.connect(g); g.connect(audio.destination);
+    o.start(t); o.stop(t + 0.3);
+  }
+
+  function aplausos() {
+    if (!sonidoActivo || !audio) return;
+    const ahora = audio.currentTime;
+    const dur = 1.8;
+    for (let i = 0; i < 45; i++) {
+      const t = ahora + Math.random() * dur;
+      const largo = Math.floor(audio.sampleRate * 0.05);
+      const buf = audio.createBuffer(1, largo, audio.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let j = 0; j < largo; j++) d[j] = (Math.random() * 2 - 1) * Math.pow(1 - j / largo, 2);
+      const src = audio.createBufferSource(); src.buffer = buf;
+      const bp = audio.createBiquadFilter();
+      bp.type = "bandpass"; bp.frequency.value = 900 + Math.random() * 2200; bp.Q.value = 0.7;
+      const gg = audio.createGain(); gg.gain.value = 0.06 + Math.random() * 0.05;
+      src.connect(bp); bp.connect(gg); gg.connect(audio.destination);
+      src.start(t);
+    }
+    const notas = [523.25, 659.25, 783.99, 1046.5];
+    notas.forEach((f, i) => {
+      const t = ahora + i * 0.12;
+      const o = audio.createOscillator(); o.type = "triangle"; o.frequency.value = f;
+      const gg = audio.createGain();
+      gg.gain.setValueAtTime(0.0001, t);
+      gg.gain.exponentialRampToValueAtTime(0.22, t + 0.02);
+      gg.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+      o.connect(gg); gg.connect(audio.destination);
+      o.start(t); o.stop(t + 0.55);
+    });
+  }
+
+  function hablar() {
+    if (!sonidoActivo || !("speechSynthesis" in window)) return;
+    try {
+      const u = new SpeechSynthesisUtterance("¡Muy bien!");
+      u.lang = "es-ES"; u.rate = 0.95; u.pitch = 1.1;
+      const voces = speechSynthesis.getVoices();
+      const es = voces.find((v) => /es/i.test(v.lang));
+      if (es) u.voice = es;
+      speechSynthesis.cancel();
+      speechSynthesis.speak(u);
+    } catch (e) { /* sin voz, no pasa nada */ }
+  }
+
+  // ---------------------------------------------------------------------------
+  // BOTONES / UI
+  // ---------------------------------------------------------------------------
+
+  function marcarPresetActivo() {
+    [...contPresets.children].forEach((b) => b.classList.toggle("activo", +b.dataset.num === numPiezas));
+  }
+
+  PRESETS.forEach((n) => {
+    const b = document.createElement("button");
+    b.className = "preset"; b.dataset.num = n; b.textContent = n;
+    b.title = n + " piezas";
+    b.addEventListener("click", () => {
+      numPiezas = n;
+      construirPuzzle(); // rebaraja con el nuevo nº de piezas (misma imagen)
+    });
+    contPresets.appendChild(b);
+  });
+
+  btnGuia.addEventListener("click", () => {
+    mostrarGuia = !mostrarGuia;
+    btnGuia.classList.toggle("activo", mostrarGuia);
+    btnGuia.textContent = mostrarGuia ? "👁️" : "🙈";
+  });
+  btnGuia.classList.add("activo");
+
+  btnSonido.addEventListener("click", () => {
+    sonidoActivo = !sonidoActivo;
+    btnSonido.textContent = sonidoActivo ? "🔊" : "🔇";
+    if (sonidoActivo) prepararAudio();
+  });
+
+  function rebarajar() { construirPuzzle(); }
+
+  async function cambiarImagen() {
+    indiceImagen = (indiceImagen + 1) % fuentes.length;
+    await ponerImagen(indiceImagen);
+  }
+
+  document.getElementById("btnOtra").addEventListener("click", rebarajar);
+  document.getElementById("btnSiguiente").addEventListener("click", rebarajar);
+  document.getElementById("btnCambiarTop").addEventListener("click", cambiarImagen);
+  document.getElementById("btnCambiar").addEventListener("click", cambiarImagen);
+
+  // ---------------------------------------------------------------------------
+  // BUCLE + ARRANQUE
+  // ---------------------------------------------------------------------------
+
+  function bucle() {
+    if (confeti.length) {
+      for (let i = confeti.length - 1; i >= 0; i--) {
+        const p = confeti[i];
+        p.x += p.vx; p.y += p.vy; p.vy += 0.12; p.rot += p.vr;
+        if (p.y > geo.h + 40) confeti.splice(i, 1);
+      }
+    }
+    dibujar();
+    requestAnimationFrame(bucle);
+  }
+
+  async function ponerImagen(indice) {
+    const res = await cargarImagen(indice);
+    imagen = res.src; imgW = res.w; imgH = res.h;
+    construirPuzzle();
+  }
+
+  window.addEventListener("resize", alRedimensionar);
+  if ("speechSynthesis" in window) speechSynthesis.onvoiceschanged = () => {};
+
+  ajustarLienzo();
+  ponerImagen(indiceImagen);
+  requestAnimationFrame(bucle);
+
+  // ---------------------------------------------------------------------------
+  // Enganche para pruebas automáticas (no molesta al jugar).
+  // ---------------------------------------------------------------------------
+  window.__esela = {
+    // Coloca automáticamente todas las piezas y dispara la victoria.
+    resolver() {
+      for (const p of piezas) { p.x = p.homeX; p.y = p.homeY; p.colocada = true; }
+      ordenSueltas = [];
+      arrastrando = null;
+      ganar();
+    },
+    rebarajar,
+    get ganado() { return ganado; },
+    get numPiezas() { return piezas.length; },
+    get rejilla() { return { filas, cols }; },
+  };
+})();
+</script>
+</body>
+</html>

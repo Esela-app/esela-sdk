@@ -55,6 +55,26 @@ export const JUEGOS: readonly Juego[] = [
     ],
     offline: true,
   },
+  {
+    id: 'puzzle',
+    nombre: 'Puzzles',
+    descripcion:
+      'Arrastra con el dedo las piezas de rompecabezas a su sitio: encajan ' +
+      'solas con un margen generoso y sin castigos. El nº de piezas es ' +
+      'configurable (6, 12, 20, 35). Usa los wallpapers de Esela y, si no hay ' +
+      'conexión, imágenes de reserva con los escenarios del laberinto. Al ' +
+      'completarlo: aplausos y la palabra “¡BIEN!”.',
+    emoji: '🧩',
+    ruta: 'juegos/puzzle/index.html',
+    controles: ['tactil', 'raton'],
+    habilidades: [
+      'percepción visual',
+      'encaje de formas',
+      'motricidad fina',
+      'planificación viso-espacial',
+    ],
+    offline: true,
+  },
 ] as const;
 
 /** Devuelve un juego por su id, o `undefined` si no existe. */

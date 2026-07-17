@@ -1,0 +1,19 @@
+{
+  "name": "Puzzles · Esela",
+  "short_name": "Puzzles",
+  "description": "Juego de puzzles táctil para peques: arrastra las piezas a su sitio, encajan solas y al terminar salen aplausos y ¡BIEN!",
+  "lang": "es",
+  "dir": "ltr",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#FFFDF5",
+  "theme_color": "#F49A1E",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -180,10 +180,20 @@
   // Nota técnica: solo se dibujan con drawImage (nunca se leen los píxeles con
   // getImageData), por eso no hay problemas de "canvas tainted" aunque la
   // imagen venga de otro dominio. Aun así pedimos crossOrigin = "anonymous".
+  // Escenas de Esela (las mismas que se usan en las historias). Son rutas del
+  // propio sitio: al servir el juego desde esela.app funcionan directamente; si
+  // se abre el archivo sin conexión, fallan al cargar y se usan las reservas.
   const WALLPAPERS_ESELA = [
-    // "https://esela.app/wallpapers/panal.png",
-    // "https://esela.app/wallpapers/jungla.png",
-    // ...
+    "/wallpapers/pradera.jpg",
+    "/wallpapers/camino-campo.webp",
+    "/wallpapers/playa.webp",
+    "/wallpapers/parque-patos.webp",
+    "/wallpapers/parque-juegos.webp",
+    "/wallpapers/jardin.webp",
+    "/wallpapers/bosque.webp",
+    "/wallpapers/lago-montana.webp",
+    "/wallpapers/puente-real.webp",
+    "/wallpapers/rio-cascada.webp",
   ];
 
   // --- Elementos de la interfaz ---------------------------------------------

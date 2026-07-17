@@ -219,6 +219,7 @@
   let camino = [];      // celdas trazadas por el dedo (ruta simple)
   let ganado = false;
   let dibujando = false;
+  let posPersonaje = null; // posición en píxeles del personaje (para deslizar)
 
   // Geometría de pintado (se recalcula al redimensionar)
   let g = { tam: 0, offX: 0, offY: 0 };
@@ -347,6 +348,7 @@
     g.offY = (rect.height - tam * H) / 2;
     g.ancho = rect.width;
     g.alto = rect.height;
+    posPersonaje = null; // al cambiar la geometría, recolocar sin animar
   }
 
   function centro(c) {
@@ -410,7 +412,7 @@
     // 5) Meta y personaje (emojis grandes).
     const pm = centro(meta);
     emoji(tema.meta, pm.x, pm.y, t * 0.7);
-    const pa = centro(actual);
+    const pa = posPersonaje || centro(actual);
     emoji(tema.inicio, pa.x, pa.y, t * 0.66);
 
     // 6) Confeti al ganar.
@@ -764,6 +766,17 @@
         if (p.y > g.alto + 40) confeti.splice(i, 1);
       }
     }
+    // Deslizamiento suave del personaje hacia su celda: en vez de saltar,
+    // persigue su destino con easing y da sensación de desplazamiento.
+    if (g.tam) {
+      const destino = centro(actual);
+      if (!posPersonaje) {
+        posPersonaje = { x: destino.x, y: destino.y };
+      } else {
+        posPersonaje.x += (destino.x - posPersonaje.x) * 0.18;
+        posPersonaje.y += (destino.y - posPersonaje.y) * 0.18;
+      }
+    }
     dibujar();
     requestAnimationFrame(bucle);
   }
@@ -816,6 +829,8 @@
     get nivel() { return nivel; },
     get dims() { return { cols: NIVEL.cols, filas: NIVEL.filas }; },
     setNivel(n) { aplicarNivel(n); },
+    get posPersonaje() { return posPersonaje ? { x: posPersonaje.x, y: posPersonaje.y } : null; },
+    get centroActual() { const c = centro(actual); return { x: c.x, y: c.y }; },
   };
 })();
 </script>

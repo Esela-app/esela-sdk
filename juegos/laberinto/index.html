@@ -243,6 +243,7 @@
   // dimensiones actuales de la rejilla.
   let nivel = 1;
   let braidProb = 0.15; // pocos atajos: el laberinto no se resuelve en línea recta
+  let celdasCorto = 5;  // nº de celdas en el lado CORTO (el largo se adapta a la pantalla)
   const NIVEL = { cols: 5, filas: 5 };
 
   const lienzo = document.getElementById("lienzo");
@@ -372,6 +373,11 @@
   }
 
   function nuevoLaberinto() {
+    // Ajusta la rejilla a la forma de la pantalla (alargada en vertical) para
+    // aprovechar todo el espacio.
+    const dim = dimsParaPantalla();
+    NIVEL.cols = dim.cols; NIVEL.filas = dim.filas;
+    if (nivelPista) nivelPista.textContent = `rejilla ${dim.cols}×${dim.filas}`;
     // Inicio y meta en esquinas opuestas; regenerar hasta que la solución no
     // sea trivial (ni recta ni escuadra), incluso en los niveles fáciles.
     let intentos = 0;
@@ -397,18 +403,30 @@
   // Curva pensada para: nivel 20 ≈ reto de adolescente; nivel 50 ≈ reto de adulto.
   function dimsDeNivel(n) {
     const paso = Math.floor((n - 1) / 5);        // sube cada 5 niveles
-    const d = Math.min(5 + paso * 3, 34);        // 5 → 8 → 11 → 14 … (tope 34)
+    const corto = Math.min(5 + paso * 3, 30);    // celdas en el lado corto (5 → 8 → 11 …)
     const braid = Math.max(0, 0.15 - (n - 1) * 0.012); // pocos atajos; ninguno al subir
-    return { d, braid };
+    return { corto, braid };
+  }
+
+  // Calcula filas×columnas para LLENAR la pantalla con celdas cuadradas: el lado
+  // corto lleva `celdasCorto` celdas y el largo las que quepan (más alto que
+  // ancho en vertical). Así se aprovecha toda la pantalla en móvil/tablet.
+  function dimsParaPantalla() {
+    const rect = lienzo.parentElement.getBoundingClientRect();
+    const w = rect.width || 400, h = rect.height || 600;
+    const corto = celdasCorto;
+    const menor = Math.min(w, h), mayor = Math.max(w, h);
+    const cell = menor / corto;
+    const largo = Math.max(corto, Math.min(64, Math.round(mayor / cell)));
+    return (w >= h) ? { cols: largo, filas: corto } : { cols: corto, filas: largo };
   }
 
   function aplicarNivel(n) {
     nivel = Math.max(1, Math.min(99, Math.round(n) || 1));
-    const { d, braid } = dimsDeNivel(nivel);
-    NIVEL.cols = d; NIVEL.filas = d;
+    const { corto, braid } = dimsDeNivel(nivel);
+    celdasCorto = corto;
     braidProb = braid;
     if (nivelNum) nivelNum.value = nivel;
-    if (nivelPista) nivelPista.textContent = `rejilla ${d}×${d}`;
     nuevoLaberinto();
   }
 
@@ -432,7 +450,7 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     const W = NIVEL.cols, H = NIVEL.filas;
-    const pad = Math.min(rect.width, rect.height) * 0.06 + 8;
+    const pad = 8; // margen pequeño: aprovechar el máximo de pantalla
     const tam = Math.min((rect.width - 2 * pad) / W, (rect.height - 2 * pad) / H);
     g.tam = tam;
     g.offX = (rect.width - tam * W) / 2;

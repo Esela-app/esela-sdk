@@ -116,6 +116,29 @@
     font-weight: 600; box-shadow: 0 2px 6px rgba(0,0,0,.08);
     pointer-events: none; opacity: .9;
   }
+
+  /* Menú de ajustes deslizante (tuerca), estilo del editor de Esela */
+  #ajustesFondo {
+    position: absolute; inset: 0; background: rgba(0,0,0,.22); z-index: 14;
+    opacity: 0; pointer-events: none; transition: opacity .25s ease;
+  }
+  #ajustesFondo.abierto { opacity: 1; pointer-events: auto; }
+  #ajustes {
+    position: absolute; top: 0; right: 0; bottom: 0; width: min(360px, 88vw);
+    background: var(--fondo); color: var(--texto);
+    box-shadow: -10px 0 34px rgba(0,0,0,.20);
+    transform: translateX(100%); transition: transform .28s ease;
+    z-index: 15; display: flex; flex-direction: column; gap: 4px;
+    padding: 14px 16px calc(16px + env(safe-area-inset-bottom));
+    overflow-y: auto;
+  }
+  #ajustes.abierto { transform: translateX(0); }
+  .ajustes-top { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  .ajustes-top h2 { flex: 1; margin: 0; font-size: clamp(20px, 5vw, 26px); font-weight: 800; }
+  .ajustes-sec { padding: 14px 0; border-top: 1px solid var(--borde, rgba(0,0,0,.08)); }
+  .ajustes-sec:first-of-type { border-top: none; }
+  .ajustes-sec h3 { margin: 0 0 10px; font-size: 15px; font-weight: 800; opacity: .85; }
+  #ajustes #temas { flex-wrap: wrap; }
 </style>
 </head>
 <body>
@@ -123,18 +146,37 @@
   <header>
     <button class="icono" id="btnVolver" title="Volver a Juegos" aria-label="Volver a Juegos">←</button>
     <h1 class="titulo"><span class="emoji" id="tituloEmoji">🐝</span><span id="tituloTexto">Lleva la abejita al panal</span></h1>
-    <div class="botones" id="temas"></div>
-    <div class="botones" id="nivelCtrl">
-      <span class="nivel-lbl">Nivel</span>
-      <button class="icono chico" id="btnNivelMenos" title="Más fácil" aria-label="Nivel más fácil">➖</button>
-      <input class="nivel-num" id="nivelNum" type="number" min="1" max="99" value="1" inputmode="numeric" aria-label="Número de nivel">
-      <button class="icono chico" id="btnNivelMas" title="Más difícil" aria-label="Nivel más difícil">➕</button>
-    </div>
     <div class="botones">
-      <button class="icono" id="btnSonido" title="Sonido">🔊</button>
       <button class="icono" id="btnOtra" title="Otro laberinto">🔄</button>
+      <button class="icono" id="btnAjustes" title="Ajustes" aria-label="Ajustes">⚙️</button>
     </div>
   </header>
+
+  <!-- Menú de ajustes deslizante (tuerca): nivel, personajes y futuras opciones -->
+  <div id="ajustesFondo"></div>
+  <aside id="ajustes" role="dialog" aria-label="Ajustes">
+    <div class="ajustes-top">
+      <h2>Ajustes</h2>
+      <button class="icono" id="btnCerrarAjustes" title="Cerrar" aria-label="Cerrar">✖️</button>
+    </div>
+    <div class="ajustes-sec">
+      <h3>Nivel de dificultad</h3>
+      <div class="botones" id="nivelCtrl">
+        <button class="icono chico" id="btnNivelMenos" title="Más fácil" aria-label="Nivel más fácil">➖</button>
+        <input class="nivel-num" id="nivelNum" type="number" min="1" max="99" value="1" inputmode="numeric" aria-label="Número de nivel">
+        <button class="icono chico" id="btnNivelMas" title="Más difícil" aria-label="Nivel más difícil">➕</button>
+        <span class="nivel-lbl" id="nivelPista"></span>
+      </div>
+    </div>
+    <div class="ajustes-sec">
+      <h3>Personaje y escenario</h3>
+      <div class="botones" id="temas"></div>
+    </div>
+    <div class="ajustes-sec">
+      <h3>Sonido</h3>
+      <button class="icono" id="btnSonido" title="Sonido">🔊</button>
+    </div>
+  </aside>
   <div class="escenario">
     <canvas id="lienzo"></canvas>
     <div class="pista" id="pista">Desliza el dedo por el camino ✏️</div>
@@ -200,7 +242,7 @@
   // pequeñas y con más ramificaciones) y tiene menos atajos. NIVEL guarda las
   // dimensiones actuales de la rejilla.
   let nivel = 1;
-  let braidProb = 0.4; // atajos/bucles (más fácil); baja al subir de nivel
+  let braidProb = 0.15; // pocos atajos: el laberinto no se resuelve en línea recta
   const NIVEL = { cols: 5, filas: 5 };
 
   const lienzo = document.getElementById("lienzo");
@@ -212,6 +254,9 @@
   const contTemas = document.getElementById("temas");
   const btnSonido = document.getElementById("btnSonido");
   const nivelNum = document.getElementById("nivelNum");
+  const nivelPista = document.getElementById("nivelPista");
+  const ajustes = document.getElementById("ajustes");
+  const ajustesFondo = document.getElementById("ajustesFondo");
 
   let tema = TEMAS[0];
   let celdas = [];      // rejilla del laberinto
@@ -289,10 +334,52 @@
     return grid;
   }
 
+  // Camino de solución (BFS) entre inicio y meta con el laberinto actual.
+  function rutaSolucion() {
+    const cola = [inicio], previo = new Map([[inicio, null]]);
+    while (cola.length) {
+      const c = cola.shift();
+      if (c === meta) break;
+      const vec = [];
+      if (c.y > 0) vec.push(celdas[c.y - 1][c.x]);
+      if (c.x < NIVEL.cols - 1) vec.push(celdas[c.y][c.x + 1]);
+      if (c.y < NIVEL.filas - 1) vec.push(celdas[c.y + 1][c.x]);
+      if (c.x > 0) vec.push(celdas[c.y][c.x - 1]);
+      vec.forEach((n) => { if (pasable(c, n) && !previo.has(n)) { previo.set(n, c); cola.push(n); } });
+    }
+    if (!previo.has(meta)) return null;
+    const ruta = []; let cur = meta;
+    while (cur) { ruta.unshift(cur); cur = previo.get(cur); }
+    return ruta;
+  }
+
+  // ¿La solución es demasiado obvia (recta o simple escuadra)? Exige un mínimo
+  // de giros y de longitud extra sobre la distancia en línea recta.
+  function esTrivial() {
+    const ruta = rutaSolucion();
+    if (!ruta || ruta.length < 2) return true;
+    const recta = (NIVEL.cols - 1) + (NIVEL.filas - 1);
+    const minLen = recta + Math.max(3, Math.round(recta * 0.4));
+    if (ruta.length - 1 < minLen) return true;
+    let giros = 0;
+    for (let i = 2; i < ruta.length; i++) {
+      const dx1 = ruta[i - 1].x - ruta[i - 2].x, dy1 = ruta[i - 1].y - ruta[i - 2].y;
+      const dx2 = ruta[i].x - ruta[i - 1].x, dy2 = ruta[i].y - ruta[i - 1].y;
+      if (dx1 !== dx2 || dy1 !== dy2) giros++;
+    }
+    return giros < 3;
+  }
+
   function nuevoLaberinto() {
-    celdas = generarLaberinto(NIVEL.cols, NIVEL.filas);
-    inicio = celdas[NIVEL.filas - 1][0];          // abajo-izquierda
-    meta = celdas[0][NIVEL.cols - 1];             // arriba-derecha
+    // Inicio y meta en esquinas opuestas; regenerar hasta que la solución no
+    // sea trivial (ni recta ni escuadra), incluso en los niveles fáciles.
+    let intentos = 0;
+    do {
+      celdas = generarLaberinto(NIVEL.cols, NIVEL.filas);
+      inicio = celdas[NIVEL.filas - 1][0];        // abajo-izquierda
+      meta = celdas[0][NIVEL.cols - 1];           // arriba-derecha
+      intentos++;
+    } while (intentos < 40 && esTrivial());
     actual = inicio;
     camino = [inicio];
     ganado = false;
@@ -309,7 +396,7 @@
   function dimsDeNivel(n) {
     const paso = Math.floor((n - 1) / 5);        // sube cada 5 niveles
     const d = Math.min(5 + paso * 3, 34);        // 5 → 8 → 11 → 14 … (tope 34)
-    const braid = Math.max(0, 0.4 - (n - 1) * 0.02); // menos atajos al subir
+    const braid = Math.max(0, 0.15 - (n - 1) * 0.012); // pocos atajos; ninguno al subir
     return { d, braid };
   }
 
@@ -319,6 +406,7 @@
     NIVEL.cols = d; NIVEL.filas = d;
     braidProb = braid;
     if (nivelNum) nivelNum.value = nivel;
+    if (nivelPista) nivelPista.textContent = `rejilla ${d}×${d}`;
     nuevoLaberinto();
   }
 
@@ -723,7 +811,7 @@
 
   function aplicarTema(t) {
     tema = t;
-    document.documentElement.style.setProperty("--fondo", t.fondo);
+    // (--fondo se deja en su valor por defecto, opaco, para el menú de ajustes)
     document.documentElement.style.setProperty("--suelo", t.suelo);
     document.documentElement.style.setProperty("--pared", t.pared);
     document.documentElement.style.setProperty("--camino", t.camino);
@@ -737,9 +825,16 @@
     const b = document.createElement("button");
     b.className = "icono"; b.dataset.id = t.id; b.textContent = t.inicio;
     b.title = t.titulo;
-    b.addEventListener("click", () => aplicarTema(t));
+    b.addEventListener("click", () => { aplicarTema(t); cerrarAjustes(); });
     contTemas.appendChild(b);
   });
+
+  // Menú de ajustes (tuerca): se desliza desde la derecha.
+  function abrirAjustes() { ajustes.classList.add("abierto"); ajustesFondo.classList.add("abierto"); }
+  function cerrarAjustes() { ajustes.classList.remove("abierto"); ajustesFondo.classList.remove("abierto"); }
+  document.getElementById("btnAjustes").addEventListener("click", abrirAjustes);
+  document.getElementById("btnCerrarAjustes").addEventListener("click", cerrarAjustes);
+  ajustesFondo.addEventListener("click", cerrarAjustes);
 
   btnSonido.addEventListener("click", () => {
     sonidoActivo = !sonidoActivo;
@@ -792,6 +887,7 @@
   if ("speechSynthesis" in window) speechSynthesis.onvoiceschanged = () => {};
 
   aplicarTema(TEMAS[0]);
+  aplicarNivel(nivel); // fija dificultad, pista de tamaño y genera el laberinto
   requestAnimationFrame(bucle);
 
   // Enganche mínimo para pruebas automáticas (no molesta al jugar).
@@ -838,6 +934,20 @@
     setNivel(n) { aplicarNivel(n); },
     get posPersonaje() { return posPersonaje ? { x: posPersonaje.x, y: posPersonaje.y } : null; },
     get centroActual() { const c = centro(actual); return { x: c.x, y: c.y }; },
+    nuevo() { nuevoLaberinto(); },
+    metrica() {
+      const r = rutaSolucion();
+      if (!r) return { pasos: 0, giros: 0 };
+      let g2 = 0;
+      for (let i = 2; i < r.length; i++) {
+        const a = r[i - 1].x - r[i - 2].x, b = r[i - 1].y - r[i - 2].y;
+        const c = r[i].x - r[i - 1].x, d = r[i].y - r[i - 1].y;
+        if (a !== c || b !== d) g2++;
+      }
+      return { pasos: r.length - 1, giros: g2 };
+    },
+    abrirAjustes() { document.getElementById("btnAjustes").click(); },
+    get ajustesAbierto() { return ajustes.classList.contains("abierto"); },
   };
 })();
 </script>

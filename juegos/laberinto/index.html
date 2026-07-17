@@ -121,6 +121,7 @@
 <body>
 <div id="app">
   <header>
+    <button class="icono" id="btnVolver" title="Volver a Juegos" aria-label="Volver a Juegos">←</button>
     <h1 class="titulo"><span class="emoji" id="tituloEmoji">🐝</span><span id="tituloTexto">Lleva la abejita al panal</span></h1>
     <div class="botones" id="temas"></div>
     <div class="botones" id="nivelCtrl">
@@ -744,6 +745,12 @@
     sonidoActivo = !sonidoActivo;
     btnSonido.textContent = sonidoActivo ? "🔊" : "🔇";
     if (sonidoActivo) prepararAudio();
+  });
+
+  // Volver a la lista de juegos. En la web va a la sección Juegos; abierto como
+  // archivo (sin conexión) va al índice de la carpeta de juegos.
+  document.getElementById("btnVolver").addEventListener("click", () => {
+    window.location.href = location.protocol === "file:" ? "../index.html" : "/juegos";
   });
 
   document.getElementById("btnOtra").addEventListener("click", () => nuevoLaberinto());

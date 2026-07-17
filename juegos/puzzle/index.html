@@ -147,6 +147,7 @@
 <body>
 <div id="app">
   <header>
+    <button class="icono" id="btnVolver" title="Volver a Juegos" aria-label="Volver a Juegos">←</button>
     <h1 class="titulo"><span class="emoji">🧩</span><span>Puzzles</span></h1>
     <div class="botones" id="presets"></div>
     <div class="botones">
@@ -1058,6 +1059,11 @@
 
   document.getElementById("btnGaleria").addEventListener("click", abrirGaleria);
   document.getElementById("btnCerrarGaleria").addEventListener("click", cerrarGaleria);
+
+  // Volver a la lista de juegos (web → sección Juegos; archivo → índice local).
+  document.getElementById("btnVolver").addEventListener("click", () => {
+    window.location.href = location.protocol === "file:" ? "../index.html" : "/juegos";
+  });
 
   // ---------------------------------------------------------------------------
   // BUCLE + ARRANQUE

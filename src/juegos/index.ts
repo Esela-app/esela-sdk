@@ -77,6 +77,28 @@ export const JUEGOS: readonly Juego[] = [
     ],
     offline: true,
   },
+  {
+    id: 'colorear',
+    nombre: 'Colorear',
+    descripcion:
+      'Pinta dibujos con el dedo: lápiz, rotulador, pincel, pluma, cera, un ' +
+      'cubo de relleno que respeta las líneas y una goma de borrar. Grosores, ' +
+      '18 colores alegres y tapices (lunares, rayas, estrellas, corazones…) ' +
+      'para pintar con textura. El cajón de herramientas se desliza desde la ' +
+      'derecha y se cierra solo al elegir. Más de 30 dibujos sencillos ' +
+      '(sol, casa, gato, pez, cohete…) y botón para deshacer. Sin prisa, sin ' +
+      'errores ni castigos: solo crear y disfrutar.',
+    emoji: '🎨',
+    ruta: 'juegos/colorear/index.html',
+    controles: ['tactil', 'raton'],
+    habilidades: [
+      'creatividad y expresión',
+      'reconocimiento del color',
+      'motricidad fina',
+      'coordinación óculo-manual',
+    ],
+    offline: true,
+  },
 ] as const;
 
 /** Devuelve un juego por su id, o `undefined` si no existe. */

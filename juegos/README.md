@@ -10,6 +10,7 @@ conexión a internet: son archivos que se abren directamente en la tablet.
 |-------|---------|--------|
 | 🐝 Laberintos | [`laberinto/`](laberinto/) | ✅ Disponible |
 | 🧩 Puzzles | [`puzzle/`](puzzle/) | ✅ Disponible |
+| 🎨 Colorear | [`colorear/`](colorear/) | ✅ Disponible |
 
 La página [`index.html`](index.html) es el **apartado "Juegos"**: muestra las
 tarjetas de cada juego y deja hueco para los siguientes.
@@ -126,6 +127,79 @@ const WALLPAPERS_ESELA = [
 2. *(Opcional)* **“Añadir a pantalla de inicio”** para tenerlo como app a
    pantalla completa (con su icono 🧩). Va mejor **apaisado**.
 3. Arrastra cada pieza del montón hasta su hueco: cuando esté cerca, encaja sola.
+
+## 🎨 Colorear
+
+El peque **pinta dibujos con el dedo**: elige un dibujo, un instrumento y un
+color, y colorea a su ritmo. No hay objetivos ni tiempo: solo crear y disfrutar.
+Está pensado para **bebés y niños hasta ~5 años**, con el mismo cariño que el
+laberinto y el puzzle (sin prisa, sin errores ni castigos, todo grande y táctil).
+
+### Cómo funciona por dentro
+
+Hay **dos lienzos superpuestos**:
+
+- **Pintura** (abajo): donde va el color.
+- **Líneas** (arriba, sin capturar toques): el **contorno negro** del dibujo,
+  siempre visible por encima de la pintura. Se usa además como **frontera** para
+  el cubo de relleno.
+
+### El cajón de herramientas (deslizante)
+
+Un **botón flotante 🖌️** a la derecha abre un **cajón que se desliza desde la
+derecha**. **Al elegir cualquier cosa (instrumento, grosor, color o tapiz) el
+cajón se cierra solo** (cómodo con la tablet en las manos); también se cierra con
+la ✖️ o tocando fuera. El cajón hace scroll si no cabe. Secciones:
+
+- **Instrumentos:**
+  - ✏️ **Lápiz** (fino, opaco y duro).
+  - 🖊️ **Rotulador** (medio, semiopaco ~0.85).
+  - 🖌️ **Pincel** (grueso, borde suave).
+  - 🪶 **Pluma** (muy fino).
+  - 🖍️ **Cera** (medio, con textura de crayón).
+  - 🪣 **Cubo** (relleno de zona).
+  - 🧽 **Borrador** (goma).
+- **Grosor:** Fino / Medio / Grueso / Muy grueso (cambia el radio del trazo).
+- **Colores:** 18 tonos alegres (incluye negro, blanco, marrón y un tono piel).
+  Se marca cuál está activo.
+- **Tapices (patrones):** Liso, **lunares, rayas, estrellas, corazones y
+  cuadros**. Con un tapiz activo, el trazo pinta con esa textura (se genera con
+  `createPattern` usando el color activo).
+
+Abajo a la izquierda, un indicador muestra el **instrumento y color activos**.
+
+### El cubo de relleno
+
+El **cubo 🪣** hace un *flood fill* en la capa de pintura a partir del punto
+tocado, usando la capa de líneas como **frontera**: donde hay contorno negro, el
+relleno se detiene. Así se rellenan los huecos del dibujo **sin salirse de las
+líneas**. El **borrador** borra pintura (no toca el contorno).
+
+### Deshacer y limpiar
+
+- **↩️ Deshacer:** guarda una instantánea de la pintura al empezar cada trazo o
+  relleno (pila de ~20) y la restaura.
+- **🗑️ Limpiar:** vacía la pintura (y también se puede deshacer).
+
+### Los dibujos (más de 30)
+
+Hay **más de 30 dibujos** (actualmente 44) hechos como **SVG** sencillos y
+reconocibles, solo con **contorno negro** y zonas amplias para rellenar: sol,
+luna, estrella, nube, arcoíris, casa, árbol, flor, seta, frutas, pez, pulpo,
+ballena, tortuga, caracol, mariposa, abeja, mariquita, pájaro, pato, búho, gato,
+perro, conejo, oso, elefante, ratón, coche, barco, cohete, globo, helado,
+corazón, paraguas, pelota, regalo, taza, cupcake… El botón **🖼️** abre una
+**galería** con todos (se abre también al empezar); al tocar uno se carga
+limpiando la pintura.
+
+### Cómo jugar en la tablet
+
+1. Abre `colorear/index.html` en el navegador.
+2. *(Opcional)* **“Añadir a pantalla de inicio”** para tenerlo como app a
+   pantalla completa (icono 🎨). Va mejor **apaisado**.
+3. Elige un dibujo en la galería, toca 🖌️ para abrir las herramientas, elige
+   instrumento y color, y pinta con el dedo. El **cubo** rellena zonas enteras.
+4. La flecha **←** de arriba a la izquierda vuelve al apartado de Juegos.
 
 ## Licencia
 

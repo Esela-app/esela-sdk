@@ -877,7 +877,13 @@
   // BOTONES DE LA CABECERA Y DEL CAJÓN
   // ---------------------------------------------------------------------------
   document.getElementById("btnVolver").addEventListener("click", () => {
-    window.location.href = location.protocol === "file:" ? "../index.html" : "/juegos";
+    if (location.protocol === "file:") { window.location.href = "../index.html"; return; }
+    // Respeta el idioma de la ruta (/es/juegos, /en/juegos…) para no dar 404.
+    const locs = ["es", "en", "de", "fr", "pt", "it", "ca"];
+    const ck = document.cookie.match(/(?:^|;\s*)NEXT_LOCALE=([^;]+)/);
+    let loc = ck && locs.includes(ck[1]) ? ck[1] : "";
+    if (!loc) { const n = (navigator.language || "es").slice(0, 2).toLowerCase(); loc = locs.includes(n) ? n : "es"; }
+    window.location.href = "/" + loc + "/juegos";
   });
   document.getElementById("btnGaleria").addEventListener("click", abrirGaleria);
   document.getElementById("btnCerrarGaleria").addEventListener("click", cerrarGaleria);

@@ -80,7 +80,7 @@
     display: none; align-items: center; justify-content: center;
     flex-direction: column; gap: 18px;
     background: rgba(255,253,245,0.55);
-    z-index: 5;
+    z-index: 20;
   }
   #celebra.mostrar { display: flex; }
   .bien {
@@ -116,6 +116,32 @@
     font-weight: 600; box-shadow: 0 2px 6px rgba(0,0,0,.08);
     pointer-events: none; opacity: .9;
   }
+
+  /* Selector de escenas: galería de fotos para elegir */
+  #galeria {
+    position: absolute; inset: 0; z-index: 8; display: none;
+    flex-direction: column; background: rgba(255,253,245,0.97);
+    padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
+  }
+  #galeria.mostrar { display: flex; }
+  .galeria-top { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .galeria-top h2 { margin: 0; flex: 1; font-size: clamp(18px, 4.6vw, 28px); font-weight: 800; }
+  .galeria-grid {
+    flex: 1 1 auto; overflow-y: auto; display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px; align-content: start; padding-bottom: 8px;
+  }
+  button.mini {
+    border: none; padding: 0; background: #fff; border-radius: 16px; overflow: hidden;
+    box-shadow: 0 3px 10px rgba(0,0,0,.10); cursor: pointer;
+    transition: transform .1s ease, box-shadow .1s ease;
+    display: flex; flex-direction: column;
+  }
+  button.mini:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,.16); }
+  button.mini:active { transform: scale(.97); }
+  button.mini:focus-visible { outline: 4px solid var(--camino); outline-offset: 2px; }
+  button.mini canvas { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; background: #eee; }
+  .mini-label { padding: 8px 10px; font-size: 14px; font-weight: 700; color: var(--texto); text-align: center; }
 </style>
 </head>
 <body>
@@ -124,6 +150,7 @@
     <h1 class="titulo"><span class="emoji">🧩</span><span>Puzzles</span></h1>
     <div class="botones" id="presets"></div>
     <div class="botones">
+      <button class="icono" id="btnGaleria" title="Elegir foto">🖼️</button>
       <button class="icono" id="btnGuia" title="Mostrar/ocultar la ayuda">👁️</button>
       <button class="icono" id="btnSonido" title="Sonido">🔊</button>
       <button class="icono" id="btnCambiarTop" title="Cambiar imagen">🎨</button>
@@ -140,6 +167,14 @@
         <button class="grande" id="btnSiguiente">Otra vez 🔄</button>
         <button class="grande suave" id="btnCambiar">Cambiar 🎨</button>
       </div>
+    </div>
+    <!-- Selector de escenas: David elige la foto que más le guste -->
+    <div id="galeria">
+      <div class="galeria-top">
+        <h2>Elige tu foto 🖼️</h2>
+        <button class="icono" id="btnCerrarGaleria" title="Cerrar">✖️</button>
+      </div>
+      <div class="galeria-grid" id="galeriaGrid"></div>
     </div>
   </div>
 </div>
@@ -953,6 +988,77 @@
   document.getElementById("btnCambiarTop").addEventListener("click", cambiarImagen);
   document.getElementById("btnCambiar").addEventListener("click", cambiarImagen);
 
+  // --- Selector de escenas (galería de fotos) -------------------------------
+  const galeria = document.getElementById("galeria");
+  const galeriaGrid = document.getElementById("galeriaGrid");
+  let galeriaLista = false;
+
+  // Nombre bonito para cada escena (a partir del nombre de la reserva o del
+  // archivo del wallpaper: "parque-patos.webp" → "Parque Patos").
+  function nombreFuente(f, i) {
+    if (f.tipo === "reserva") {
+      const n = f.reserva.nombre;
+      return n.charAt(0).toUpperCase() + n.slice(1);
+    }
+    const base = (f.url.split("/").pop() || "").replace(/\.[a-z0-9]+$/i, "").replace(/[-_]/g, " ");
+    return base.replace(/\b\w/g, (c) => c.toUpperCase()) || ("Foto " + (i + 1));
+  }
+
+  // Miniatura en un canvas: dibuja la reserva al instante y, si es un wallpaper,
+  // la sustituye por la foto real al cargar (recortada tipo "cover").
+  function miniatura(f) {
+    const c = document.createElement("canvas");
+    c.width = 300; c.height = 225;
+    const cx = c.getContext("2d");
+    if (f.reserva) f.reserva.dibujar(cx, c.width, c.height);
+    if (f.tipo === "url") {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        if (!img.naturalWidth) return;
+        const cr = c.width / c.height;
+        let sw = img.naturalWidth, sh = img.naturalHeight, sx = 0, sy = 0;
+        if (img.naturalWidth / img.naturalHeight > cr) { sw = sh * cr; sx = (img.naturalWidth - sw) / 2; }
+        else { sh = sw / cr; sy = (img.naturalHeight - sh) / 2; }
+        cx.drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
+      };
+      img.src = f.url;
+    }
+    return c;
+  }
+
+  function construirGaleria() {
+    galeriaGrid.innerHTML = "";
+    fuentes.forEach((f, i) => {
+      const card = document.createElement("button");
+      card.className = "mini";
+      card.appendChild(miniatura(f));
+      const lab = document.createElement("div");
+      lab.className = "mini-label";
+      lab.textContent = nombreFuente(f, i);
+      card.appendChild(lab);
+      card.addEventListener("click", () => elegirEscena(i));
+      galeriaGrid.appendChild(card);
+    });
+    galeriaLista = true;
+  }
+
+  function abrirGaleria() {
+    if (!galeriaLista) construirGaleria();
+    galeria.classList.add("mostrar");
+  }
+  function cerrarGaleria() { galeria.classList.remove("mostrar"); }
+
+  async function elegirEscena(i) {
+    indiceImagen = i;
+    cerrarGaleria();
+    prepararAudio();
+    await ponerImagen(i);
+  }
+
+  document.getElementById("btnGaleria").addEventListener("click", abrirGaleria);
+  document.getElementById("btnCerrarGaleria").addEventListener("click", cerrarGaleria);
+
   // ---------------------------------------------------------------------------
   // BUCLE + ARRANQUE
   // ---------------------------------------------------------------------------
@@ -980,6 +1086,7 @@
 
   ajustarLienzo();
   ponerImagen(indiceImagen);
+  abrirGaleria(); // al empezar, David elige la foto que más le guste
   requestAnimationFrame(bucle);
 
   // ---------------------------------------------------------------------------
@@ -994,6 +1101,11 @@
       ganar();
     },
     rebarajar,
+    abrirGaleria,
+    cerrarGaleria,
+    elegirEscena,
+    get numEscenas() { return fuentes.length; },
+    get galeriaAbierta() { return galeria.classList.contains("mostrar"); },
     get ganado() { return ganado; },
     get numPiezas() { return piezas.length; },
     get rejilla() { return { filas, cols }; },

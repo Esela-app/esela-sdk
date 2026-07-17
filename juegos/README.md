@@ -106,6 +106,8 @@ const WALLPAPERS_ESELA = [
   conexión), se usan **imágenes de reserva dibujadas por código** que reutilizan
   los cuatro escenarios del laberinto: **panal, jungla, cueva y piscina**. Así el
   juego funciona ya, sin conexión, y con dibujos que el peque reconoce.
+- El botón **🖼️ Elegir foto** abre una **galería de escenas**: el peque toca la
+  foto que más le guste y esa se parte en piezas. Se abre también al empezar.
 - El botón **🎨 Cambiar** pasa a la siguiente imagen; **🔄** rebaraja la misma.
 
 ### Cómo jugar en la tablet

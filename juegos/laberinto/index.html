@@ -726,18 +726,31 @@
     actual = c;
   }
 
-  function intentarMover(px, py) {
-    if (ganado) return;
-    const destino = celdaEnPunto(px, py);
+  let ultimoPunto = null; // último punto del dedo (para interpolar el trazo)
+
+  // Un solo paso a una celda CONTIGUA abierta (nunca salta lejos).
+  function pasoAdyacente(destino) {
     if (!destino || destino === actual) return;
-    // El personaje SIGUE AL DEDO por el corredor: recorre la ruta desde su
-    // celda hasta la del dedo, de forma continua (no un paso por toque).
-    const ruta = caminoEntre(actual, destino);
-    if (!ruta) return; // el dedo está en una zona no conectada: espera
-    for (let k = 1; k < ruta.length; k++) {
-      pasoDeCamino(ruta[k]);
-      if (actual === meta) { ganar(); return; }
+    if (!pasable(actual, destino)) return; // no es contigua/abierta: no avanza
+    pasoDeCamino(destino);
+    if (actual === meta) ganar();
+  }
+
+  // Sigue al dedo SOLO por las celdas contiguas que va tocando. Interpola entre
+  // el punto anterior y el actual para que también funcione arrastrando rápido,
+  // pero SIN saltar a celdas lejanas: un toque suelto no recorre el laberinto.
+  function seguirDedo(px, py) {
+    if (ganado) return;
+    if (!ultimoPunto) { ultimoPunto = { x: px, y: py }; return; }
+    const dx = px - ultimoPunto.x, dy = py - ultimoPunto.y;
+    const dist = Math.hypot(dx, dy);
+    const muestra = Math.max(4, g.tam * 0.4);
+    const n = Math.max(1, Math.ceil(dist / muestra));
+    for (let k = 1; k <= n; k++) {
+      pasoAdyacente(celdaEnPunto(ultimoPunto.x + dx * (k / n), ultimoPunto.y + dy * (k / n)));
+      if (ganado) break;
     }
+    ultimoPunto = { x: px, y: py };
   }
 
   function xy(ev) {
@@ -753,16 +766,17 @@
     dibujando = true;
     lienzo.setPointerCapture?.(ev.pointerId);
     const p = xy(ev);
-    // Solo empieza a trazar si toca cerca del personaje (o directamente lo mueve).
-    intentarMover(p.x, p.y);
+    ultimoPunto = { x: p.x, y: p.y };
+    // Un solo paso si tocas una celda contigua; tocar lejos no hace nada.
+    pasoAdyacente(celdaEnPunto(p.x, p.y));
   });
   lienzo.addEventListener("pointermove", (ev) => {
     if (!dibujando) return;
     ev.preventDefault();
     const p = xy(ev);
-    intentarMover(p.x, p.y);
+    seguirDedo(p.x, p.y);
   });
-  const soltar = () => { dibujando = false; };
+  const soltar = () => { dibujando = false; ultimoPunto = null; };
   lienzo.addEventListener("pointerup", soltar);
   lienzo.addEventListener("pointercancel", soltar);
 
@@ -998,6 +1012,7 @@
       return ruta.map((c) => { const p = centro(c); return { x: r.left + p.x, y: r.top + p.y }; });
     },
     get ganado() { return ganado; },
+    get pasosCamino() { return camino.length; },
     get nivel() { return nivel; },
     get dims() { return { cols: NIVEL.cols, filas: NIVEL.filas }; },
     setNivel(n) { aplicarNivel(n); },

@@ -1,0 +1,938 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#F49A1E">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Colorear">
+<meta name="application-name" content="Colorear">
+<title>Colorear · Esela</title>
+<!-- App a pantalla completa: se puede "Añadir a pantalla de inicio" en la tablet. -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<style>
+  :root {
+    --fondo: #FFFDF5;
+    --suelo: #FFF8E1;
+    --acento: #F9A826;
+    --texto: #5B4636;
+    --panel: rgba(255,255,255,0.9);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    overflow: hidden; overscroll-behavior: none;
+    background: var(--fondo);
+    color: var(--texto);
+    font-family: -apple-system, "Segoe UI", Roboto, "Comic Sans MS", system-ui, sans-serif;
+    -webkit-user-select: none; user-select: none;
+    touch-action: none;
+  }
+  #app { position: fixed; inset: 0; display: flex; flex-direction: column; }
+
+  header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px calc(6px + env(safe-area-inset-top)) 12px;
+  }
+  .titulo {
+    font-size: clamp(18px, 4.5vw, 30px);
+    font-weight: 800; margin: 0; flex: 1 1 auto;
+    display: flex; align-items: center; gap: 8px; min-width: 0;
+  }
+  .titulo .emoji { font-size: 1.2em; }
+  .titulo .txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .botones { display: flex; gap: 8px; align-items: center; }
+  button.icono {
+    border: none; background: var(--panel);
+    border-radius: 18px; padding: 10px 14px;
+    font-size: clamp(22px, 6vw, 32px); line-height: 1;
+    box-shadow: 0 2px 6px rgba(0,0,0,.08);
+    cursor: pointer; transition: transform .08s ease;
+    color: var(--texto);
+  }
+  button.icono:active { transform: scale(.92); }
+  button.icono.activo { outline: 4px solid var(--acento); background: #fff; }
+
+  .escenario { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+  /* Zona de dibujo: dos lienzos superpuestos (pintura debajo, líneas encima). */
+  .lienzos {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    background: #fff; border-radius: 18px;
+    box-shadow: 0 6px 24px rgba(0,0,0,.10);
+    touch-action: none;
+  }
+  .lienzos canvas {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    border-radius: 18px; display: block; touch-action: none;
+  }
+  #lineas { pointer-events: none; }
+
+  /* Indicador del instrumento y color activos (abajo a la izquierda). */
+  #estado {
+    position: absolute; left: calc(10px + env(safe-area-inset-left));
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel); border-radius: 16px;
+    padding: 7px 12px; box-shadow: 0 2px 6px rgba(0,0,0,.08);
+    font-size: clamp(13px, 3.4vw, 16px); font-weight: 700;
+    pointer-events: none; max-width: 70vw;
+  }
+  #estado .punto { width: 18px; height: 18px; border-radius: 50%; box-shadow: inset 0 0 0 2px rgba(0,0,0,.12); flex: 0 0 auto; }
+  #estado .ins-icono { font-size: 1.25em; }
+  #estado .ins-txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Botón flotante que abre el cajón de herramientas (a la derecha). */
+  #abrirCajon {
+    position: absolute; right: calc(12px + env(safe-area-inset-right)); top: 50%;
+    transform: translateY(-50%);
+    border: none; border-radius: 22px 6px 6px 22px;
+    background: var(--acento); color: #fff;
+    padding: 16px 14px; font-size: clamp(26px, 7vw, 36px); line-height: 1;
+    box-shadow: -3px 4px 12px rgba(0,0,0,.18); cursor: pointer;
+    transition: transform .1s ease;
+  }
+  #abrirCajon:active { transform: translateY(-50%) scale(.94); }
+
+  /* CAJÓN DESLIZANTE desde la derecha con todas las herramientas. */
+  #velo {
+    position: absolute; inset: 0; background: rgba(40,30,20,.18);
+    opacity: 0; pointer-events: none; transition: opacity .22s ease; z-index: 30;
+  }
+  #velo.visible { opacity: 1; pointer-events: auto; }
+  #cajon {
+    position: absolute; top: 0; right: 0; height: 100%;
+    width: min(340px, 88vw);
+    background: #FFFDF7; z-index: 31;
+    box-shadow: -8px 0 30px rgba(0,0,0,.18);
+    transform: translateX(100%); transition: transform .26s cubic-bezier(.3,.9,.4,1);
+    display: flex; flex-direction: column;
+  }
+  #cajon.abierto { transform: translateX(0); }
+  .cajon-top {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 14px 8px; flex: 0 0 auto;
+  }
+  .cajon-top h2 { margin: 0; flex: 1; font-size: clamp(18px, 4.6vw, 24px); font-weight: 800; }
+  .cajon-scroll { flex: 1 1 auto; overflow-y: auto; padding: 4px 14px 8px; -webkit-overflow-scrolling: touch; }
+  .btn-aceptar {
+    flex: 0 0 auto; margin: 8px 14px calc(14px + env(safe-area-inset-bottom));
+    border: none; border-radius: 18px; padding: 15px 20px;
+    font-size: clamp(17px, 4.6vw, 22px); font-weight: 800; color: #fff;
+    background: var(--acento, #F49A1E); box-shadow: 0 4px 0 rgba(0,0,0,.15);
+    cursor: pointer; transition: transform .08s ease;
+  }
+  .btn-aceptar:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.15); }
+  .seccion { margin: 6px 0 16px; }
+  .seccion h3 {
+    margin: 0 0 8px; font-size: 14px; font-weight: 800; letter-spacing: .02em;
+    color: var(--texto); opacity: .75; text-transform: uppercase;
+  }
+
+  .rejilla-ins { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  button.herr {
+    border: none; background: #fff; border-radius: 16px;
+    padding: 10px 4px 8px; cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,.07);
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    transition: transform .08s ease;
+    color: var(--texto);
+  }
+  button.herr:active { transform: scale(.94); }
+  button.herr.activo { outline: 3px solid var(--acento); background: #FFF6E4; }
+  button.herr .ic { font-size: 26px; line-height: 1; }
+  button.herr .nb { font-size: 11px; font-weight: 700; }
+
+  .fila-grosor { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+  button.gros {
+    flex: 1 1 0; border: none; background: #fff; border-radius: 16px;
+    padding: 10px 4px; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,.07);
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    transition: transform .08s ease; color: var(--texto);
+  }
+  button.gros:active { transform: scale(.94); }
+  button.gros.activo { outline: 3px solid var(--acento); background: #FFF6E4; }
+  button.gros .bolita { background: var(--texto); border-radius: 50%; }
+  button.gros .nb { font-size: 10px; font-weight: 700; }
+
+  .rejilla-col { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+  button.color {
+    aspect-ratio: 1 / 1; border: none; border-radius: 50%;
+    cursor: pointer; box-shadow: inset 0 0 0 2px rgba(0,0,0,.10), 0 2px 5px rgba(0,0,0,.10);
+    transition: transform .08s ease;
+  }
+  button.color:active { transform: scale(.9); }
+  button.color.activo { outline: 4px solid var(--acento); outline-offset: 2px; }
+
+  .rejilla-tap { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  button.tap {
+    border: none; border-radius: 16px; cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,.07);
+    padding: 8px 4px 6px; display: flex; flex-direction: column; align-items: center; gap: 4px;
+    background: #fff; transition: transform .08s ease; color: var(--texto);
+  }
+  button.tap:active { transform: scale(.94); }
+  button.tap.activo { outline: 3px solid var(--acento); background: #FFF6E4; }
+  button.tap canvas { width: 40px; height: 40px; border-radius: 10px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
+  button.tap .nb { font-size: 11px; font-weight: 700; }
+
+  /* Galería de dibujos para colorear. */
+  #galeria {
+    position: absolute; inset: 0; z-index: 40; display: none;
+    flex-direction: column; background: rgba(255,253,245,0.98);
+    padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
+  }
+  #galeria.mostrar { display: flex; }
+  .galeria-top { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .galeria-top h2 { margin: 0; flex: 1; font-size: clamp(18px, 4.6vw, 28px); font-weight: 800; }
+  .galeria-grid {
+    flex: 1 1 auto; overflow-y: auto; display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 12px; align-content: start; padding-bottom: 8px;
+  }
+  button.mini {
+    border: none; padding: 0; background: #fff; border-radius: 16px; overflow: hidden;
+    box-shadow: 0 3px 10px rgba(0,0,0,.10); cursor: pointer;
+    transition: transform .1s ease, box-shadow .1s ease;
+    display: flex; flex-direction: column;
+  }
+  button.mini:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,.16); }
+  button.mini:active { transform: scale(.96); }
+  button.mini:focus-visible { outline: 4px solid var(--acento); outline-offset: 2px; }
+  button.mini canvas,
+  .mini-svg { display: block; width: 100%; height: auto; aspect-ratio: 1 / 1; background: #fff; }
+  .mini-label { padding: 6px 8px; font-size: 13px; font-weight: 700; color: var(--texto); text-align: center; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <button class="icono" id="btnVolver" title="Volver a Juegos" aria-label="Volver a Juegos">←</button>
+    <h1 class="titulo"><span class="emoji">🎨</span><span class="txt" id="tituloTxt">Colorear</span></h1>
+    <div class="botones">
+      <button class="icono" id="btnGaleria" title="Elegir dibujo" aria-label="Elegir dibujo">🖼️</button>
+      <button class="icono" id="btnDeshacer" title="Deshacer" aria-label="Deshacer">↩️</button>
+      <button class="icono" id="btnLimpiar" title="Empezar de nuevo" aria-label="Empezar de nuevo">🗑️</button>
+    </div>
+  </header>
+
+  <div class="escenario" id="escenario">
+    <div class="lienzos" id="lienzos">
+      <canvas id="pintura"></canvas>
+      <canvas id="lineas"></canvas>
+    </div>
+
+    <div id="estado">
+      <span class="ins-icono" id="estIcono">✏️</span>
+      <span class="ins-txt" id="estTxt">Lápiz</span>
+      <span class="punto" id="estPunto"></span>
+    </div>
+
+    <button id="abrirCajon" title="Herramientas" aria-label="Abrir herramientas">🖌️</button>
+
+    <!-- Velo + cajón deslizante -->
+    <div id="velo"></div>
+    <aside id="cajon" aria-label="Herramientas de dibujo">
+      <div class="cajon-top">
+        <h2>Herramientas 🖌️</h2>
+        <button class="icono" id="btnCerrarCajon" title="Cerrar" aria-label="Cerrar herramientas">✖️</button>
+      </div>
+      <div class="cajon-scroll">
+        <div class="seccion">
+          <h3>Instrumentos</h3>
+          <div class="rejilla-ins" id="listaIns"></div>
+        </div>
+        <div class="seccion">
+          <h3>Grosor</h3>
+          <div class="fila-grosor" id="listaGros"></div>
+        </div>
+        <div class="seccion">
+          <h3>Colores</h3>
+          <div class="rejilla-col" id="listaCol"></div>
+        </div>
+        <div class="seccion">
+          <h3>Tapices</h3>
+          <div class="rejilla-tap" id="listaTap"></div>
+        </div>
+      </div>
+      <button class="btn-aceptar" id="btnAceptar">Aceptar ✓</button>
+    </aside>
+
+    <!-- Galería de dibujos -->
+    <div id="galeria">
+      <div class="galeria-top">
+        <h2>Elige tu dibujo 🖼️</h2>
+        <button class="icono" id="btnCerrarGaleria" title="Cerrar" aria-label="Cerrar galería">✖️</button>
+      </div>
+      <div class="galeria-grid" id="galeriaGrid"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ===========================================================================
+  // Esela · Juego de COLOREAR táctil para bebés y peques (hasta ~5 años)
+  // Sin dependencias. Funciona sin conexión abriendo este archivo en la tablet.
+  //
+  // Diseño hermano del laberinto y el puzzle, con el mismo cariño:
+  //   · Sin prisa, sin errores ni castigos. Solo pintar y disfrutar.
+  //   · Dos lienzos superpuestos: PINTURA (abajo) y LÍNEAS (contorno, arriba).
+  //   · Cubo de relleno que respeta las líneas (no se sale del dibujo).
+  //   · Cajón de herramientas que se desliza desde la derecha y se cierra solo
+  //     al elegir (cómodo con una tablet en las manos).
+  //   · Más de 30 dibujos sencillos y reconocibles para colorear.
+  // ===========================================================================
+
+  // Resolución interna de los lienzos (moderada, para que el relleno por
+  // inundación y las instantáneas de "deshacer" sean rápidas). Proporción 4:3.
+  const BASE_W = 1000, BASE_H = 750;
+
+  // --- Instrumentos ----------------------------------------------------------
+  // factor: multiplica el grosor base · alpha: opacidad · tipo: cómo pinta.
+  const INSTRUMENTOS = [
+    { id: "lapiz",     nombre: "Lápiz",     icon: "✏️", factor: 0.45, alpha: 1.0, tipo: "trazo" },
+    { id: "rotulador", nombre: "Rotulador", icon: "🖊️", factor: 0.95, alpha: 0.85, tipo: "trazo" },
+    { id: "pincel",    nombre: "Pincel",    icon: "🖌️", factor: 1.5,  alpha: 0.95, tipo: "trazo", suave: true },
+    { id: "pluma",     nombre: "Pluma",     icon: "🪶", factor: 0.28, alpha: 1.0, tipo: "trazo" },
+    { id: "cera",      nombre: "Cera",      icon: "🖍️", factor: 1.0,  alpha: 0.9, tipo: "trazo", textura: true },
+    { id: "cubo",      nombre: "Cubo",      icon: "🪣", tipo: "relleno" },
+    { id: "borrador",  nombre: "Borrador",  icon: "🧽", factor: 1.7,  tipo: "borrar" },
+  ];
+
+  // --- Grosores --------------------------------------------------------------
+  const GROSORES = [
+    { id: "fino", nombre: "Fino", r: 6 },
+    { id: "medio", nombre: "Medio", r: 13 },
+    { id: "grueso", nombre: "Grueso", r: 24 },
+    { id: "muy", nombre: "Muy grueso", r: 38 },
+  ];
+
+  // --- Colores (18 tonos alegres, incluye negro, blanco, marrón y piel) ------
+  const COLORES = [
+    "#2B2B2B", "#8D5A2B", "#E5C39A", "#FFFFFF",
+    "#E53935", "#FF7043", "#FB8C00", "#FDD835",
+    "#C0CA33", "#7CB342", "#2E9E5B", "#26A69A",
+    "#29B6F6", "#1E88E5", "#3F51B5", "#8E24AA",
+    "#EC407A", "#F48FB1",
+  ];
+
+  // --- Tapices (patrones para pintar con textura) ----------------------------
+  const TAPICES = [
+    { id: "ninguno", nombre: "Liso" },
+    { id: "lunares", nombre: "Lunares" },
+    { id: "rayas", nombre: "Rayas" },
+    { id: "estrellas", nombre: "Estrellas" },
+    { id: "corazones", nombre: "Corazones" },
+    { id: "cuadros", nombre: "Cuadros" },
+  ];
+
+  // --- Dibujos para colorear (SVG, solo contorno negro; zonas amplias) -------
+  // Cada dibujo es la parte interior de un <svg viewBox="0 0 100 100">. Se
+  // renderiza SIN relleno (fill:none) y con trazo negro redondeado: así la capa
+  // de líneas queda transparente salvo el contorno, que sirve de frontera para
+  // el cubo de relleno. Pensados para bebés/peques: grandes, simples, alegres.
+  const DIBUJOS = [
+    { nombre: "Sol", svg: '<circle cx="50" cy="50" r="18"/><line x1="50" y1="8" x2="50" y2="24"/><line x1="50" y1="76" x2="50" y2="92"/><line x1="8" y1="50" x2="24" y2="50"/><line x1="76" y1="50" x2="92" y2="50"/><line x1="21" y1="21" x2="32" y2="32"/><line x1="68" y1="68" x2="79" y2="79"/><line x1="79" y1="21" x2="68" y2="32"/><line x1="32" y1="68" x2="21" y2="79"/>' },
+    { nombre: "Luna", svg: '<path d="M64 14 A38 38 0 1 0 64 86 A30 30 0 1 1 64 14 Z"/>' },
+    { nombre: "Estrella", svg: '<path d="M50 10 L61 38 L92 39 L67 58 L76 88 L50 70 L24 88 L33 58 L8 39 L39 38 Z"/>' },
+    { nombre: "Nube", svg: '<path d="M28 68 Q14 68 16 56 Q9 46 22 44 Q24 30 40 32 Q46 21 60 27 Q78 24 78 42 Q90 46 82 58 Q86 68 72 68 Z"/>' },
+    { nombre: "Arcoíris", svg: '<path d="M15 82 A35 35 0 0 1 85 82"/><path d="M27 82 A23 23 0 0 1 73 82"/><path d="M39 82 A11 11 0 0 1 61 82"/><ellipse cx="15" cy="82" rx="9" ry="6"/><ellipse cx="85" cy="82" rx="9" ry="6"/>' },
+    { nombre: "Casa", svg: '<path d="M20 50 L50 24 L80 50 L80 84 L20 84 Z"/><rect x="42" y="62" width="16" height="22"/><rect x="28" y="55" width="12" height="12"/><rect x="60" y="55" width="12" height="12"/>' },
+    { nombre: "Árbol", svg: '<rect x="44" y="58" width="12" height="28"/><circle cx="50" cy="38" r="26"/>' },
+    { nombre: "Flor", svg: '<circle cx="50" cy="26" r="12"/><circle cx="72" cy="42" r="12"/><circle cx="63" cy="68" r="12"/><circle cx="37" cy="68" r="12"/><circle cx="28" cy="42" r="12"/><circle cx="50" cy="47" r="11"/><line x1="50" y1="58" x2="50" y2="90"/>' },
+    { nombre: "Seta", svg: '<path d="M22 52 A28 22 0 0 1 78 52 Z"/><path d="M40 52 L40 78 Q50 88 60 78 L60 52 Z"/><circle cx="40" cy="42" r="4"/><circle cx="58" cy="40" r="5"/><circle cx="50" cy="49" r="4"/>' },
+    { nombre: "Manzana", svg: '<path d="M50 33 C38 21 20 31 22 51 C24 75 42 86 50 80 C58 86 76 75 78 51 C80 31 62 21 50 33 Z"/><line x1="50" y1="33" x2="52" y2="18"/><path d="M52 22 Q64 14 70 24 Q60 30 52 26 Z"/>' },
+    { nombre: "Pera", svg: '<path d="M50 26 C46 26 44 34 45 40 C34 46 30 62 40 76 C48 86 60 84 66 74 C74 60 68 46 56 40 C57 34 55 26 50 26 Z"/><line x1="50" y1="26" x2="50" y2="16"/>' },
+    { nombre: "Plátano", svg: '<path d="M24 40 Q28 74 60 78 Q84 78 84 66 Q66 70 50 56 Q34 42 34 34 Q26 34 24 40 Z"/>' },
+    { nombre: "Uvas", svg: '<circle cx="40" cy="46" r="9"/><circle cx="58" cy="46" r="9"/><circle cx="49" cy="58" r="9"/><circle cx="33" cy="60" r="9"/><circle cx="65" cy="60" r="9"/><circle cx="49" cy="72" r="9"/><path d="M49 37 Q49 26 60 22"/>' },
+    { nombre: "Sandía", svg: '<path d="M16 34 A46 46 0 0 0 84 34 Z"/><path d="M24 35 A38 38 0 0 0 76 35 Z"/><circle cx="50" cy="60" r="2.6"/><circle cx="40" cy="52" r="2.6"/><circle cx="60" cy="52" r="2.6"/>' },
+    { nombre: "Zanahoria", svg: '<path d="M40 40 L60 40 L52 88 Q50 92 48 88 Z"/><path d="M40 40 Q34 24 44 22 Q46 32 50 40"/><path d="M50 40 Q50 20 60 22 Q58 34 50 40"/>' },
+    { nombre: "Pez", svg: '<path d="M20 50 Q40 30 66 40 Q80 44 84 50 Q80 56 66 60 Q40 70 20 50 Z"/><path d="M84 50 L96 40 L96 60 Z"/><circle cx="40" cy="47" r="3"/>' },
+    { nombre: "Pulpo", svg: '<path d="M30 42 A20 20 0 0 1 70 42 L70 60 Q64 54 58 60 Q52 54 46 60 Q40 54 34 60 Q30 54 30 60 Z"/><circle cx="42" cy="44" r="3"/><circle cx="58" cy="44" r="3"/>' },
+    { nombre: "Ballena", svg: '<path d="M18 56 Q18 38 42 38 Q70 38 78 52 Q86 52 90 46 Q88 60 80 58 Q78 68 58 68 Q26 68 18 56 Z"/><circle cx="34" cy="50" r="2.6"/><path d="M46 34 Q42 24 48 20"/><path d="M46 34 Q52 24 44 20"/>' },
+    { nombre: "Estrella de mar", svg: '<path d="M50 12 L60 38 L88 40 L66 58 L74 86 L50 70 L26 86 L34 58 L12 40 L40 38 Z"/><circle cx="50" cy="46" r="3"/><circle cx="44" cy="56" r="2.4"/><circle cx="56" cy="56" r="2.4"/>' },
+    { nombre: "Tortuga", svg: '<ellipse cx="48" cy="52" rx="26" ry="20"/><circle cx="80" cy="50" r="8"/><ellipse cx="30" cy="70" rx="7" ry="5"/><ellipse cx="64" cy="72" rx="7" ry="5"/><path d="M48 32 L48 72 M22 52 L74 52"/>' },
+    { nombre: "Caracol", svg: '<path d="M16 74 Q16 64 30 64 L70 64 Q78 64 78 72 Q78 78 70 78 L22 78 Q16 78 16 74 Z"/><circle cx="46" cy="46" r="20"/><path d="M46 34 A12 12 0 1 1 34 46 A7 7 0 1 1 46 39"/><line x1="72" y1="64" x2="78" y2="52"/><line x1="66" y1="64" x2="62" y2="52"/>' },
+    { nombre: "Mariposa", svg: '<path d="M50 30 Q30 12 20 30 Q14 44 34 48 Q22 56 30 68 Q44 68 50 52 Q56 68 70 68 Q78 56 66 48 Q86 44 80 30 Q70 12 50 30 Z"/><line x1="50" y1="30" x2="50" y2="60"/><line x1="50" y1="30" x2="44" y2="18"/><line x1="50" y1="30" x2="56" y2="18"/>' },
+    { nombre: "Abeja", svg: '<ellipse cx="52" cy="52" rx="24" ry="18"/><path d="M44 36 Q40 52 40 68 M56 36 Q60 52 60 68"/><circle cx="24" cy="46" r="9"/><path d="M40 40 Q30 20 46 30"/><path d="M52 40 Q66 22 72 38"/>' },
+    { nombre: "Mariquita", svg: '<circle cx="50" cy="52" r="26"/><path d="M36 34 A18 18 0 0 1 64 34 Z"/><line x1="50" y1="34" x2="50" y2="78"/><circle cx="38" cy="52" r="4"/><circle cx="62" cy="52" r="4"/><circle cx="44" cy="66" r="4"/><circle cx="58" cy="66" r="4"/>' },
+    { nombre: "Pájaro", svg: '<path d="M30 50 Q30 32 50 34 Q70 34 74 52 Q74 68 54 68 Q34 68 30 50 Z"/><circle cx="42" cy="46" r="3"/><path d="M30 50 L16 47 L28 57 Z"/><path d="M52 50 Q62 44 66 56 Q58 62 52 56 Z"/><path d="M74 54 L90 48 L86 60 Z"/>' },
+    { nombre: "Pato", svg: '<path d="M40 46 A14 14 0 1 1 42 60 L74 60 Q84 60 84 72 Q84 82 70 82 L44 82 Q26 82 26 64 Q26 52 40 46 Z"/><circle cx="38" cy="42" r="2.6"/><path d="M26 46 L12 48 L26 54 Z"/><path d="M56 66 Q66 62 72 70 Q64 76 56 72 Z"/>' },
+    { nombre: "Búho", svg: '<path d="M26 44 Q26 20 50 20 Q74 20 74 44 L74 66 Q74 84 50 84 Q26 84 26 66 Z"/><circle cx="40" cy="44" r="10"/><circle cx="60" cy="44" r="10"/><circle cx="40" cy="44" r="3"/><circle cx="60" cy="44" r="3"/><path d="M50 52 L45 60 L55 60 Z"/><path d="M26 30 L34 24 L30 40 Z"/><path d="M74 30 L66 24 L70 40 Z"/>' },
+    { nombre: "Gato", svg: '<circle cx="50" cy="54" r="26"/><path d="M30 38 L26 18 L44 32 Z"/><path d="M70 38 L74 18 L56 32 Z"/><circle cx="42" cy="52" r="3"/><circle cx="58" cy="52" r="3"/><path d="M50 60 L46 64 L54 64 Z"/><path d="M30 62 L16 60 M30 66 L16 68 M70 62 L84 60 M70 66 L84 68"/>' },
+    { nombre: "Perro", svg: '<ellipse cx="50" cy="54" rx="24" ry="22"/><path d="M26 40 Q14 42 20 62 Q28 60 30 48 Z"/><path d="M74 40 Q86 42 80 62 Q72 60 70 48 Z"/><circle cx="42" cy="52" r="3"/><circle cx="58" cy="52" r="3"/><ellipse cx="50" cy="62" rx="6" ry="4"/>' },
+    { nombre: "Conejo", svg: '<circle cx="50" cy="60" r="22"/><ellipse cx="40" cy="26" rx="7" ry="18"/><ellipse cx="60" cy="26" rx="7" ry="18"/><circle cx="42" cy="58" r="3"/><circle cx="58" cy="58" r="3"/><path d="M50 64 L46 68 L54 68 Z"/>' },
+    { nombre: "Oso", svg: '<circle cx="50" cy="56" r="24"/><circle cx="30" cy="32" r="10"/><circle cx="70" cy="32" r="10"/><circle cx="42" cy="54" r="3"/><circle cx="58" cy="54" r="3"/><ellipse cx="50" cy="64" rx="10" ry="8"/><circle cx="50" cy="61" r="3"/>' },
+    { nombre: "Elefante", svg: '<circle cx="52" cy="48" r="26"/><circle cx="30" cy="40" r="14"/><circle cx="74" cy="40" r="14"/><path d="M52 60 Q52 84 40 84 Q32 84 34 74"/><circle cx="46" cy="44" r="3"/><circle cx="62" cy="44" r="3"/>' },
+    { nombre: "Ratón", svg: '<circle cx="50" cy="56" r="22"/><circle cx="32" cy="34" r="11"/><circle cx="68" cy="34" r="11"/><circle cx="44" cy="54" r="3"/><circle cx="56" cy="54" r="3"/><circle cx="50" cy="62" r="3"/><path d="M72 62 Q88 66 84 80"/>' },
+    { nombre: "Coche", svg: '<path d="M14 62 L14 54 L26 54 L34 42 L66 42 L74 54 L86 54 L86 62 Z"/><circle cx="30" cy="64" r="8"/><circle cx="70" cy="64" r="8"/><rect x="38" y="44" width="10" height="9"/><rect x="52" y="44" width="10" height="9"/>' },
+    { nombre: "Barco", svg: '<path d="M18 62 L82 62 L74 78 L26 78 Z"/><line x1="50" y1="24" x2="50" y2="62"/><path d="M50 26 L74 46 L50 46 Z"/><path d="M50 30 L30 46 L50 46 Z"/>' },
+    { nombre: "Cohete", svg: '<path d="M50 12 Q64 30 64 60 L36 60 Q36 30 50 12 Z"/><circle cx="50" cy="38" r="6"/><path d="M36 56 L24 74 L38 66 Z"/><path d="M64 56 L76 74 L62 66 Z"/><path d="M42 60 L58 60 L54 74 L46 74 Z"/>' },
+    { nombre: "Globo", svg: '<ellipse cx="50" cy="42" rx="24" ry="28"/><path d="M46 70 L54 70 L50 76 Z"/><path d="M50 76 Q56 84 50 92"/>' },
+    { nombre: "Helado", svg: '<path d="M34 46 L66 46 L52 86 Q50 90 48 86 Z"/><line x1="38" y1="54" x2="46" y2="46"/><line x1="46" y1="62" x2="58" y2="50"/><line x1="52" y1="72" x2="62" y2="62"/><circle cx="42" cy="34" r="12"/><circle cx="58" cy="34" r="12"/><circle cx="50" cy="24" r="12"/>' },
+    { nombre: "Corazón", svg: '<path d="M50 82 C20 60 18 34 34 28 C44 24 50 32 50 38 C50 32 56 24 66 28 C82 34 80 60 50 82 Z"/>' },
+    { nombre: "Paraguas", svg: '<path d="M16 52 Q16 24 50 24 Q84 24 84 52 Q70 44 62 52 Q54 44 50 52 Q46 44 38 52 Q30 44 16 52 Z"/><line x1="50" y1="52" x2="50" y2="82"/><path d="M50 82 Q50 90 60 88"/>' },
+    { nombre: "Pelota", svg: '<circle cx="50" cy="50" r="30"/><path d="M20 50 Q50 36 80 50"/><path d="M20 50 Q50 64 80 50"/><line x1="50" y1="20" x2="50" y2="80"/>' },
+    { nombre: "Regalo", svg: '<rect x="22" y="44" width="56" height="40"/><rect x="22" y="34" width="56" height="12"/><line x1="50" y1="34" x2="50" y2="84"/><path d="M50 34 Q38 20 32 30 Q34 38 50 34 Z"/><path d="M50 34 Q62 20 68 30 Q66 38 50 34 Z"/>' },
+    { nombre: "Taza", svg: '<path d="M28 38 L72 38 L68 74 Q66 80 60 80 L40 80 Q34 80 32 74 Z"/><path d="M72 44 Q86 44 86 56 Q86 68 72 66"/><path d="M42 28 Q46 32 42 36 M52 28 Q56 32 52 36 M62 28 Q66 32 62 36"/>' },
+    { nombre: "Cupcake", svg: '<path d="M30 52 L70 52 L64 84 L36 84 Z"/><path d="M28 52 Q26 34 42 34 Q44 22 56 26 Q72 24 70 42 Q80 44 72 52 Z"/><line x1="40" y1="52" x2="44" y2="84"/><line x1="52" y1="52" x2="52" y2="84"/><line x1="64" y1="52" x2="60" y2="84"/>' },
+  ];
+
+  // --- Elementos de la interfaz ----------------------------------------------
+  const lienzos = document.getElementById("lienzos");
+  const pintura = document.getElementById("pintura");
+  const lineas = document.getElementById("lineas");
+  const ctxP = pintura.getContext("2d", { willReadFrequently: true });
+  const ctxL = lineas.getContext("2d", { willReadFrequently: true });
+  const escenario = document.getElementById("escenario");
+  const cajon = document.getElementById("cajon");
+  const velo = document.getElementById("velo");
+  const galeria = document.getElementById("galeria");
+  const galeriaGrid = document.getElementById("galeriaGrid");
+  const tituloTxt = document.getElementById("tituloTxt");
+  const estIcono = document.getElementById("estIcono");
+  const estTxt = document.getElementById("estTxt");
+  const estPunto = document.getElementById("estPunto");
+
+  pintura.width = BASE_W; pintura.height = BASE_H;
+  lineas.width = BASE_W; lineas.height = BASE_H;
+
+  // --- Estado ----------------------------------------------------------------
+  let instrumentoId = "lapiz";
+  let grosorIdx = 1;
+  let color = COLORES[4];       // un rojo alegre para empezar
+  let tapizId = "ninguno";
+  let patronActual = null;      // CanvasPattern del tapiz activo (o null)
+  let dibujoActual = 0;
+  let pintando = false;
+  let ultimo = null;
+  const pilaUndo = [];
+  const MAX_UNDO = 20;
+
+  // ---------------------------------------------------------------------------
+  // TAMAÑO EN PANTALLA (los lienzos mantienen 4:3 y se centran)
+  // ---------------------------------------------------------------------------
+  function ajustarTamano() {
+    const rect = escenario.getBoundingClientRect();
+    const pad = 16;
+    const dispW = Math.max(1, rect.width - pad * 2);
+    const dispH = Math.max(1, rect.height - pad * 2);
+    let w = dispW, h = w * BASE_H / BASE_W;
+    if (h > dispH) { h = dispH; w = h * BASE_W / BASE_H; }
+    lienzos.style.width = w + "px";
+    lienzos.style.height = h + "px";
+  }
+
+  // Convierte un evento de puntero a coordenadas internas del lienzo.
+  function coords(ev) {
+    const r = pintura.getBoundingClientRect();
+    return {
+      x: (ev.clientX - r.left) / r.width * BASE_W,
+      y: (ev.clientY - r.top) / r.height * BASE_H,
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // DIBUJOS: renderizar el contorno (SVG) en la capa de LÍNEAS
+  // ---------------------------------------------------------------------------
+  function envolverSVG(inner) {
+    // width/height explícitos: sin ellos, Safari/iOS no escala el SVG al
+    // dibujarlo con drawImage y el contorno sale en blanco.
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">' +
+      '<g fill="none" stroke="#141414" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round">' +
+      inner + '</g></svg>';
+  }
+
+  // Dibuja una imagen de contorno centrada en la capa de líneas.
+  function pintarContorno(img, cx) {
+    const c = cx || ctxL;
+    const W = (c === ctxL) ? BASE_W : c.canvas.width;
+    const H = (c === ctxL) ? BASE_H : c.canvas.height;
+    c.clearRect(0, 0, W, H);
+    const lado = Math.min(W, H) * 0.86;
+    const x = (W - lado) / 2, y = (H - lado) / 2;
+    c.drawImage(img, x, y, lado, lado);
+  }
+
+  function cargarDibujo(i) {
+    dibujoActual = ((i % DIBUJOS.length) + DIBUJOS.length) % DIBUJOS.length;
+    tituloTxt.textContent = DIBUJOS[dibujoActual].nombre;
+    limpiarPintura();
+    pilaUndo.length = 0;
+    return new Promise((res) => {
+      const img = new Image();
+      img.onload = () => { pintarContorno(img); res(true); };
+      img.onerror = () => { ctxL.clearRect(0, 0, BASE_W, BASE_H); res(false); };
+      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(envolverSVG(DIBUJOS[dibujoActual].svg));
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // PINTAR (lápiz, rotulador, pincel, pluma, cera, borrador)
+  // ---------------------------------------------------------------------------
+  function instrumento() { return INSTRUMENTOS.find((i) => i.id === instrumentoId); }
+
+  function configurarPincel() {
+    const ins = instrumento();
+    const g = GROSORES[grosorIdx];
+    ctxP.lineCap = "round";
+    ctxP.lineJoin = "round";
+    ctxP.lineWidth = Math.max(1, g.r * 2 * (ins.factor || 1));
+    ctxP.globalAlpha = ins.alpha != null ? ins.alpha : 1;
+    if (ins.tipo === "borrar") {
+      ctxP.globalCompositeOperation = "destination-out";
+      ctxP.strokeStyle = "rgba(0,0,0,1)";
+      ctxP.fillStyle = "rgba(0,0,0,1)";
+    } else {
+      ctxP.globalCompositeOperation = "source-over";
+      ctxP.strokeStyle = patronActual || color;
+      ctxP.fillStyle = patronActual || color;
+    }
+    if (ins.suave) { ctxP.shadowColor = color; ctxP.shadowBlur = g.r * 0.5; }
+    else { ctxP.shadowBlur = 0; ctxP.shadowColor = "transparent"; }
+  }
+
+  function restablecerContexto() {
+    ctxP.globalAlpha = 1;
+    ctxP.globalCompositeOperation = "source-over";
+    ctxP.shadowBlur = 0;
+    ctxP.shadowColor = "transparent";
+  }
+
+  function puntoPincel(p) {
+    const r = ctxP.lineWidth / 2;
+    ctxP.beginPath();
+    ctxP.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctxP.fill();
+    if (instrumento().textura) texturaCera(p, p);
+  }
+
+  function segmento(a, b) {
+    ctxP.beginPath();
+    ctxP.moveTo(a.x, a.y);
+    ctxP.lineTo(b.x, b.y);
+    ctxP.stroke();
+    if (instrumento().textura) texturaCera(a, b);
+  }
+
+  // Textura de cera: motitas suaves alrededor del trazo (aspecto de crayón).
+  function texturaCera(a, b) {
+    const r = ctxP.lineWidth / 2;
+    const n = Math.max(2, (r / 3) | 0);
+    ctxP.save();
+    ctxP.globalAlpha = 0.18;
+    for (let i = 0; i < n; i++) {
+      const t = Math.random();
+      const x = a.x + (b.x - a.x) * t + (Math.random() - 0.5) * r * 1.4;
+      const y = a.y + (b.y - a.y) * t + (Math.random() - 0.5) * r * 1.4;
+      ctxP.beginPath();
+      ctxP.arc(x, y, Math.max(0.6, r * 0.16), 0, Math.PI * 2);
+      ctxP.fill();
+    }
+    ctxP.restore();
+  }
+
+  // Pinta una polilínea completa (usada por la interacción y por las pruebas).
+  function pintarLinea(puntos) {
+    if (!puntos || !puntos.length) return;
+    const pts = puntos.map((p) => Array.isArray(p) ? { x: p[0], y: p[1] } : { x: p.x, y: p.y });
+    const ins = instrumento();
+    if (ins.tipo === "relleno") { rellenar(pts[0].x, pts[0].y); return; }
+    empujarUndo();
+    configurarPincel();
+    if (pts.length === 1) puntoPincel(pts[0]);
+    else { puntoPincel(pts[0]); for (let i = 1; i < pts.length; i++) segmento(pts[i - 1], pts[i]); }
+    restablecerContexto();
+    actualizarEstado();
+  }
+
+  // ---------------------------------------------------------------------------
+  // CUBO: relleno por inundación respetando la capa de LÍNEAS como frontera
+  // ---------------------------------------------------------------------------
+  function rellenar(cx, cy) {
+    cx = cx | 0; cy = cy | 0;
+    if (cx < 0 || cy < 0 || cx >= BASE_W || cy >= BASE_H) return;
+    empujarUndo();
+    const pd = ctxP.getImageData(0, 0, BASE_W, BASE_H);
+    const ld = ctxL.getImageData(0, 0, BASE_W, BASE_H);
+    const P = pd.data, L = ld.data;
+    const i0 = (cy * BASE_W + cx) * 4;
+    if (L[i0 + 3] > 90) { pilaUndo.pop(); return; } // se tocó una línea: no rellenar
+    const sr = P[i0], sg = P[i0 + 1], sb = P[i0 + 2], sa = P[i0 + 3];
+    const [fr, fg, fb] = hexRgb(color);
+    if (sr === fr && sg === fg && sb === fb && sa === 255) { pilaUndo.pop(); return; }
+    const tol = 40;
+    const seen = new Uint8Array(BASE_W * BASE_H);
+    const pila = [cy * BASE_W + cx];
+    while (pila.length) {
+      const q = pila.pop();
+      if (seen[q]) continue;
+      seen[q] = 1;
+      const i = q * 4;
+      if (L[i + 3] > 90) continue; // frontera
+      if (Math.abs(P[i] - sr) > tol || Math.abs(P[i + 1] - sg) > tol ||
+          Math.abs(P[i + 2] - sb) > tol || Math.abs(P[i + 3] - sa) > tol) continue;
+      P[i] = fr; P[i + 1] = fg; P[i + 2] = fb; P[i + 3] = 255;
+      const x = q % BASE_W, y = (q / BASE_W) | 0;
+      if (x > 0) pila.push(q - 1);
+      if (x < BASE_W - 1) pila.push(q + 1);
+      if (y > 0) pila.push(q - BASE_W);
+      if (y < BASE_H - 1) pila.push(q + BASE_W);
+    }
+    ctxP.putImageData(pd, 0, 0);
+    actualizarEstado();
+  }
+
+  // ---------------------------------------------------------------------------
+  // DESHACER / LIMPIAR
+  // ---------------------------------------------------------------------------
+  function empujarUndo() {
+    try {
+      pilaUndo.push(ctxP.getImageData(0, 0, BASE_W, BASE_H));
+      if (pilaUndo.length > MAX_UNDO) pilaUndo.shift();
+    } catch (e) { /* sin datos, no pasa nada */ }
+  }
+
+  function deshacer() {
+    const img = pilaUndo.pop();
+    if (!img) return;
+    ctxP.putImageData(img, 0, 0);
+    actualizarEstado();
+  }
+
+  function limpiarPintura() { ctxP.clearRect(0, 0, BASE_W, BASE_H); }
+
+  function limpiar() {
+    empujarUndo();
+    limpiarPintura();
+    actualizarEstado();
+  }
+
+  // ¿Hay pintura de color (píxeles no transparentes y no blancos)?
+  function hayPintura() {
+    const d = ctxP.getImageData(0, 0, BASE_W, BASE_H).data;
+    for (let i = 0; i < d.length; i += 16) { // muestreo (rápido y de sobra)
+      if (d[i + 3] > 16 && !(d[i] > 248 && d[i + 1] > 248 && d[i + 2] > 248)) return true;
+    }
+    return false;
+  }
+
+  // ---------------------------------------------------------------------------
+  // TAPICES (patrones): se dibujan con el color activo
+  // ---------------------------------------------------------------------------
+  function crearPatron() {
+    if (tapizId === "ninguno") { patronActual = null; return; }
+    const s = 44;
+    const t = document.createElement("canvas");
+    t.width = t.height = s;
+    const c = t.getContext("2d");
+    c.fillStyle = color; c.strokeStyle = color;
+    // Fondo muy tenue del propio color para que el patrón "agarre".
+    c.globalAlpha = 0.16; c.fillRect(0, 0, s, s); c.globalAlpha = 1;
+    if (tapizId === "lunares") {
+      for (const [x, y] of [[11, 11], [33, 33], [33, 11], [11, 33], [22, 22]]) {
+        c.beginPath(); c.arc(x, y, 5, 0, Math.PI * 2); c.fill();
+      }
+    } else if (tapizId === "rayas") {
+      c.lineWidth = 6;
+      for (let d = -s; d < s * 2; d += 16) {
+        c.beginPath(); c.moveTo(d, 0); c.lineTo(d + s, s); c.stroke();
+      }
+    } else if (tapizId === "estrellas") {
+      dibujarMini(c, 11, 11, 7, "estrella");
+      dibujarMini(c, 33, 33, 7, "estrella");
+    } else if (tapizId === "corazones") {
+      dibujarMini(c, 12, 14, 8, "corazon");
+      dibujarMini(c, 33, 33, 8, "corazon");
+    } else if (tapizId === "cuadros") {
+      c.fillRect(0, 0, s / 2, s / 2);
+      c.fillRect(s / 2, s / 2, s / 2, s / 2);
+    }
+    patronActual = ctxP.createPattern(t, "repeat");
+  }
+
+  function dibujarMini(c, cx, cy, r, forma) {
+    c.save(); c.translate(cx, cy); c.beginPath();
+    if (forma === "estrella") {
+      for (let k = 0; k < 5; k++) {
+        const a = -Math.PI / 2 + k * 2 * Math.PI / 5;
+        const a2 = a + Math.PI / 5;
+        c[k === 0 ? "moveTo" : "lineTo"](Math.cos(a) * r, Math.sin(a) * r);
+        c.lineTo(Math.cos(a2) * r * 0.45, Math.sin(a2) * r * 0.45);
+      }
+      c.closePath(); c.fill();
+    } else if (forma === "corazon") {
+      c.moveTo(0, r * 0.7);
+      c.bezierCurveTo(-r, -r * 0.2, -r * 0.5, -r, 0, -r * 0.35);
+      c.bezierCurveTo(r * 0.5, -r, r, -r * 0.2, 0, r * 0.7);
+      c.fill();
+    }
+    c.restore();
+  }
+
+  // ---------------------------------------------------------------------------
+  // COLOR: utilidades
+  // ---------------------------------------------------------------------------
+  function hexRgb(hex) {
+    const h = hex.replace("#", "");
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+  }
+
+  // ---------------------------------------------------------------------------
+  // ESTADO (indicador de instrumento + color)
+  // ---------------------------------------------------------------------------
+  function actualizarEstado() {
+    const ins = instrumento();
+    estIcono.textContent = ins.icon;
+    let nombre = ins.nombre;
+    if (tapizId !== "ninguno" && ins.tipo === "trazo") {
+      const tp = TAPICES.find((t) => t.id === tapizId);
+      if (tp) nombre += " · " + tp.nombre;
+    }
+    estTxt.textContent = nombre;
+    estPunto.style.background = (ins.tipo === "borrar") ? "#fff" : color;
+  }
+
+  // ---------------------------------------------------------------------------
+  // CAJÓN DE HERRAMIENTAS (deslizante desde la derecha)
+  // ---------------------------------------------------------------------------
+  function abrirHerramientas() { cajon.classList.add("abierto"); velo.classList.add("visible"); }
+  function cerrarHerramientas() { cajon.classList.remove("abierto"); velo.classList.remove("visible"); }
+
+  function elegirInstrumento(nombreOId) {
+    const clave = String(nombreOId).toLowerCase();
+    const ins = INSTRUMENTOS.find((i) => i.id === clave || i.nombre.toLowerCase() === clave);
+    if (!ins) return;
+    instrumentoId = ins.id;
+    marcarActivos();
+    actualizarEstado();
+  }
+
+  function elegirGrosor(idOIdx) {
+    let idx = -1;
+    if (typeof idOIdx === "number") idx = idOIdx;
+    else idx = GROSORES.findIndex((g) => g.id === String(idOIdx).toLowerCase());
+    if (idx < 0 || idx >= GROSORES.length) return;
+    grosorIdx = idx;
+    marcarActivos();
+  }
+
+  function elegirColor(hex) {
+    color = hex;
+    crearPatron();
+    marcarActivos();
+    actualizarEstado();
+  }
+
+  function elegirTapiz(id) {
+    tapizId = id;
+    crearPatron();
+    marcarActivos();
+    actualizarEstado();
+  }
+
+  // --- Construcción de los controles del cajón -------------------------------
+  const listaIns = document.getElementById("listaIns");
+  const listaGros = document.getElementById("listaGros");
+  const listaCol = document.getElementById("listaCol");
+  const listaTap = document.getElementById("listaTap");
+
+  INSTRUMENTOS.forEach((ins) => {
+    const b = document.createElement("button");
+    b.className = "herr"; b.dataset.ins = ins.id;
+    b.innerHTML = '<span class="ic">' + ins.icon + '</span><span class="nb">' + ins.nombre + '</span>';
+    b.addEventListener("click", () => elegirInstrumento(ins.id));
+    listaIns.appendChild(b);
+  });
+
+  GROSORES.forEach((g, i) => {
+    const b = document.createElement("button");
+    b.className = "gros"; b.dataset.gros = String(i);
+    const d = Math.max(6, Math.min(30, g.r * 1.1));
+    b.innerHTML = '<span class="bolita" style="width:' + d + 'px;height:' + d + 'px"></span><span class="nb">' + g.nombre + '</span>';
+    b.addEventListener("click", () => elegirGrosor(i));
+    listaGros.appendChild(b);
+  });
+
+  COLORES.forEach((hex) => {
+    const b = document.createElement("button");
+    b.className = "color"; b.dataset.col = hex;
+    b.style.background = hex;
+    b.title = hex;
+    b.addEventListener("click", () => elegirColor(hex));
+    listaCol.appendChild(b);
+  });
+
+  TAPICES.forEach((tp) => {
+    const b = document.createElement("button");
+    b.className = "tap"; b.dataset.tap = tp.id;
+    const c = document.createElement("canvas");
+    c.width = c.height = 40;
+    b.appendChild(c);
+    const lb = document.createElement("span");
+    lb.className = "nb"; lb.textContent = tp.nombre;
+    b.appendChild(lb);
+    b.addEventListener("click", () => elegirTapiz(tp.id));
+    listaTap.appendChild(b);
+    b._canvas = c;
+  });
+
+  // Refresca las miniaturas de tapices con el color activo.
+  function refrescarTapices() {
+    [...listaTap.children].forEach((b) => {
+      const c = b._canvas.getContext("2d");
+      c.clearRect(0, 0, 40, 40);
+      c.fillStyle = "#fff"; c.fillRect(0, 0, 40, 40);
+      const id = b.dataset.tap;
+      const prev = tapizId; tapizId = id;
+      if (id === "ninguno") { c.fillStyle = color; c.globalAlpha = 1; c.fillRect(0, 0, 40, 40); }
+      else {
+        const s = 44, t = document.createElement("canvas"); t.width = t.height = s;
+        // Reutiliza crearPatron pintando en una tesela y la escalamos.
+        tapizId = id; crearPatron();
+        const tile = patronActual;
+        c.save(); c.fillStyle = tile || color; c.fillRect(0, 0, 40, 40); c.restore();
+      }
+      tapizId = prev;
+    });
+    crearPatron();
+  }
+
+  function marcarActivos() {
+    [...listaIns.children].forEach((b) => b.classList.toggle("activo", b.dataset.ins === instrumentoId));
+    [...listaGros.children].forEach((b) => b.classList.toggle("activo", +b.dataset.gros === grosorIdx));
+    [...listaCol.children].forEach((b) => b.classList.toggle("activo", b.dataset.col === color));
+    [...listaTap.children].forEach((b) => b.classList.toggle("activo", b.dataset.tap === tapizId));
+    refrescarTapices();
+  }
+
+  // ---------------------------------------------------------------------------
+  // GALERÍA DE DIBUJOS
+  // ---------------------------------------------------------------------------
+  let galeriaLista = false;
+  function construirGaleria() {
+    galeriaGrid.innerHTML = "";
+    DIBUJOS.forEach((d, i) => {
+      const card = document.createElement("button");
+      card.className = "mini";
+      // Miniatura como SVG en línea: se renderiza igual en todos los navegadores
+      // (incluido iOS/Safari) y no depende de cargar imágenes.
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", "0 0 100 100");
+      svg.setAttribute("class", "mini-svg");
+      svg.innerHTML = '<g fill="none" stroke="#141414" stroke-width="3.6" ' +
+        'stroke-linejoin="round" stroke-linecap="round">' + d.svg + '</g>';
+      card.appendChild(svg);
+      const lab = document.createElement("div");
+      lab.className = "mini-label"; lab.textContent = d.nombre;
+      card.appendChild(lab);
+      card.addEventListener("click", () => elegirDibujo(i));
+      galeriaGrid.appendChild(card);
+    });
+    galeriaLista = true;
+  }
+  function abrirGaleria() { if (!galeriaLista) construirGaleria(); galeria.classList.add("mostrar"); }
+  function cerrarGaleria() { galeria.classList.remove("mostrar"); }
+  function elegirDibujo(i) { cerrarGaleria(); cargarDibujo(i); }
+
+  // ---------------------------------------------------------------------------
+  // INTERACCIÓN (táctil + ratón mediante Pointer Events)
+  // ---------------------------------------------------------------------------
+  pintura.addEventListener("pointerdown", (ev) => {
+    ev.preventDefault();
+    const p = coords(ev);
+    if (instrumento().tipo === "relleno") { rellenar(p.x, p.y); return; }
+    pintando = true;
+    empujarUndo();
+    configurarPincel();
+    puntoPincel(p);
+    ultimo = p;
+    pintura.setPointerCapture?.(ev.pointerId);
+  });
+  pintura.addEventListener("pointermove", (ev) => {
+    if (!pintando) return;
+    ev.preventDefault();
+    const p = coords(ev);
+    segmento(ultimo, p);
+    ultimo = p;
+  });
+  function soltar(ev) {
+    if (!pintando) return;
+    if (ev) ev.preventDefault();
+    pintando = false;
+    restablecerContexto();
+    actualizarEstado();
+  }
+  pintura.addEventListener("pointerup", soltar);
+  pintura.addEventListener("pointercancel", soltar);
+
+  // ---------------------------------------------------------------------------
+  // BOTONES DE LA CABECERA Y DEL CAJÓN
+  // ---------------------------------------------------------------------------
+  document.getElementById("btnVolver").addEventListener("click", () => {
+    if (location.protocol === "file:") { window.location.href = "../index.html"; return; }
+    // Respeta el idioma de la ruta (/es/juegos, /en/juegos…) para no dar 404.
+    const locs = ["es", "en", "de", "fr", "pt", "it", "ca"];
+    const ck = document.cookie.match(/(?:^|;\s*)NEXT_LOCALE=([^;]+)/);
+    let loc = ck && locs.includes(ck[1]) ? ck[1] : "";
+    if (!loc) { const n = (navigator.language || "es").slice(0, 2).toLowerCase(); loc = locs.includes(n) ? n : "es"; }
+    window.location.href = "/" + loc + "/juegos";
+  });
+  document.getElementById("btnGaleria").addEventListener("click", abrirGaleria);
+  document.getElementById("btnCerrarGaleria").addEventListener("click", cerrarGaleria);
+  document.getElementById("btnDeshacer").addEventListener("click", deshacer);
+  document.getElementById("btnLimpiar").addEventListener("click", limpiar);
+  document.getElementById("abrirCajon").addEventListener("click", abrirHerramientas);
+  document.getElementById("btnCerrarCajon").addEventListener("click", cerrarHerramientas);
+  document.getElementById("btnAceptar").addEventListener("click", cerrarHerramientas);
+  velo.addEventListener("click", cerrarHerramientas);
+
+  // ---------------------------------------------------------------------------
+  // ARRANQUE
+  // ---------------------------------------------------------------------------
+  window.addEventListener("resize", ajustarTamano);
+  window.addEventListener("orientationchange", ajustarTamano);
+
+  ajustarTamano();
+  marcarActivos();
+  actualizarEstado();
+  cargarDibujo(0);
+  abrirGaleria(); // al empezar, el peque elige el dibujo que más le guste
+
+  // ---------------------------------------------------------------------------
+  // Enganche para pruebas automáticas (no molesta al jugar).
+  // ---------------------------------------------------------------------------
+  window.__esela = {
+    get numDibujos() { return DIBUJOS.length; },
+    cargarDibujo,
+    abrirHerramientas,
+    cerrarHerramientas,
+    get cajonAbierto() { return cajon.classList.contains("abierto"); },
+    elegirColor,
+    elegirInstrumento,
+    elegirGrosor,
+    elegirTapiz,
+    pintarLinea,
+    rellenar,
+    get tienePintura() { return hayPintura(); },
+    deshacer,
+    limpiar,
+    abrirGaleria,
+    cerrarGaleria,
+    elegirDibujo,
+    get dibujoActual() { return dibujoActual; },
+    get galeriaAbierta() { return galeria.classList.contains("mostrar"); },
+    get baseW() { return BASE_W; },
+    get baseH() { return BASE_H; },
+  };
+})();
+</script>
+</body>
+</html>

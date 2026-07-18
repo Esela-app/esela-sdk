@@ -1,0 +1,1039 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#F6B93B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Laberintos">
+<meta name="application-name" content="Laberintos">
+<title>Laberintos · Esela</title>
+<!-- App a pantalla completa: se puede "Añadir a pantalla de inicio" en la tablet. -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<style>
+  :root {
+    --fondo: #FFFDF5;
+    --suelo: #FFF8E1;
+    --pared: #F6B93B;
+    --camino: #F9A826;
+    --texto: #5B4636;
+    --panel: rgba(255,255,255,0.85);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    overflow: hidden; overscroll-behavior: none;
+    background: var(--fondo);
+    color: var(--texto);
+    font-family: -apple-system, "Segoe UI", Roboto, "Comic Sans MS", system-ui, sans-serif;
+    -webkit-user-select: none; user-select: none;
+    touch-action: none;
+  }
+  #app { position: fixed; inset: 0; display: flex; flex-direction: column; }
+
+  header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px calc(6px + env(safe-area-inset-top)) 12px;
+    flex-wrap: wrap;
+  }
+  .titulo {
+    font-size: clamp(18px, 4.5vw, 30px);
+    font-weight: 800; margin: 0; flex: 1 1 auto;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .titulo .emoji { font-size: 1.2em; }
+
+  .botones { display: flex; gap: 8px; align-items: center; }
+  button.icono {
+    border: none; background: var(--panel);
+    border-radius: 18px; padding: 10px 14px;
+    font-size: clamp(22px, 6vw, 32px); line-height: 1;
+    box-shadow: 0 2px 6px rgba(0,0,0,.08);
+    cursor: pointer; transition: transform .08s ease;
+  }
+  button.icono:active { transform: scale(.92); }
+  button.icono.activo { outline: 4px solid var(--camino); background: #fff; }
+
+  /* Control de nivel */
+  #nivelCtrl { gap: 6px; }
+  .nivel-lbl { font-size: clamp(12px, 3vw, 15px); font-weight: 800; color: var(--texto); opacity: .8; }
+  button.icono.chico { padding: 8px 12px; font-size: clamp(18px, 5vw, 24px); }
+  .nivel-num {
+    width: 3.1em; text-align: center; border: none; border-radius: 14px;
+    background: var(--panel); color: var(--texto);
+    font-size: clamp(16px, 4.5vw, 22px); font-weight: 800; padding: 8px 4px;
+    box-shadow: 0 2px 6px rgba(0,0,0,.08); -moz-appearance: textfield;
+  }
+  .nivel-num::-webkit-outer-spin-button,
+  .nivel-num::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+  .escenario { position: relative; flex: 1 1 auto; min-height: 0; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+  /* Cartel de "¡BIEN!" */
+  #celebra {
+    position: absolute; inset: 0;
+    display: none; align-items: center; justify-content: center;
+    flex-direction: column; gap: 18px;
+    background: rgba(255,253,245,0.55);
+    z-index: 5;
+  }
+  #celebra.mostrar { display: flex; }
+  .bien {
+    font-size: clamp(70px, 22vw, 190px);
+    font-weight: 900; color: var(--camino);
+    text-shadow: 0 6px 0 #fff, 0 10px 24px rgba(249,168,38,.45);
+    animation: rebote .6s cubic-bezier(.2,1.4,.4,1) both;
+    letter-spacing: .02em;
+  }
+  @keyframes rebote {
+    0% { transform: scale(.2) rotate(-8deg); opacity: 0; }
+    60% { transform: scale(1.15) rotate(3deg); }
+    100% { transform: scale(1) rotate(0); opacity: 1; }
+  }
+  .estrellas { font-size: clamp(30px, 9vw, 64px); animation: pulso 1s ease-in-out infinite; }
+  @keyframes pulso { 0%,100%{ transform: scale(1);} 50%{ transform: scale(1.15);} }
+  .acciones { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+  button.grande {
+    border: none; border-radius: 24px;
+    padding: 16px 26px; font-size: clamp(18px, 5vw, 26px);
+    font-weight: 800; color: #fff; background: var(--camino);
+    box-shadow: 0 4px 0 rgba(0,0,0,.12); cursor: pointer;
+    transition: transform .08s ease;
+  }
+  button.grande:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.12); }
+  button.grande.suave { background: #fff; color: var(--texto); }
+
+  .pista {
+    position: absolute; left: 50%; bottom: calc(10px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    background: var(--panel); border-radius: 16px;
+    padding: 8px 16px; font-size: clamp(14px, 3.6vw, 18px);
+    font-weight: 600; box-shadow: 0 2px 6px rgba(0,0,0,.08);
+    pointer-events: none; opacity: .9;
+  }
+
+  /* Menú de ajustes deslizante (tuerca), estilo del editor de Esela */
+  #ajustesFondo {
+    position: absolute; inset: 0; background: rgba(0,0,0,.22); z-index: 14;
+    opacity: 0; pointer-events: none; transition: opacity .25s ease;
+  }
+  #ajustesFondo.abierto { opacity: 1; pointer-events: auto; }
+  #ajustes {
+    position: absolute; top: 0; right: 0; bottom: 0; width: min(360px, 88vw);
+    background: var(--fondo); color: var(--texto);
+    box-shadow: -10px 0 34px rgba(0,0,0,.20);
+    transform: translateX(100%); transition: transform .28s ease;
+    z-index: 15; display: flex; flex-direction: column; gap: 4px;
+    padding: 14px 16px calc(16px + env(safe-area-inset-bottom));
+    overflow-y: auto;
+  }
+  #ajustes.abierto { transform: translateX(0); }
+  .ajustes-top { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  .ajustes-top h2 { flex: 1; margin: 0; font-size: clamp(20px, 5vw, 26px); font-weight: 800; }
+  .ajustes-sec { padding: 14px 0; border-top: 1px solid var(--borde, rgba(0,0,0,.08)); }
+  .ajustes-sec:first-of-type { border-top: none; }
+  .ajustes-sec h3 { margin: 0 0 10px; font-size: 15px; font-weight: 800; opacity: .85; }
+  #ajustes #temas { flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <button class="icono" id="btnVolver" title="Volver a Juegos" aria-label="Volver a Juegos">←</button>
+    <h1 class="titulo"><span class="emoji" id="tituloEmoji">🐝</span><span id="tituloTexto">Lleva la abejita al panal</span></h1>
+    <div class="botones">
+      <button class="icono" id="btnOtra" title="Otro laberinto">🔄</button>
+      <button class="icono" id="btnAjustes" title="Ajustes" aria-label="Ajustes">⚙️</button>
+    </div>
+  </header>
+
+  <!-- Menú de ajustes deslizante (tuerca): nivel, personajes y futuras opciones -->
+  <div id="ajustesFondo"></div>
+  <aside id="ajustes" role="dialog" aria-label="Ajustes">
+    <div class="ajustes-top">
+      <h2>Ajustes</h2>
+      <button class="icono" id="btnCerrarAjustes" title="Cerrar" aria-label="Cerrar">✖️</button>
+    </div>
+    <div class="ajustes-sec">
+      <h3>Nivel de dificultad</h3>
+      <div class="botones" id="nivelCtrl">
+        <button class="icono chico" id="btnNivelMenos" title="Más fácil" aria-label="Nivel más fácil">➖</button>
+        <input class="nivel-num" id="nivelNum" type="number" min="1" max="99" value="1" inputmode="numeric" aria-label="Número de nivel">
+        <button class="icono chico" id="btnNivelMas" title="Más difícil" aria-label="Nivel más difícil">➕</button>
+        <span class="nivel-lbl" id="nivelPista"></span>
+      </div>
+    </div>
+    <div class="ajustes-sec">
+      <h3>Personaje y escenario</h3>
+      <div class="botones" id="temas"></div>
+    </div>
+    <div class="ajustes-sec">
+      <h3>Sonido</h3>
+      <button class="icono" id="btnSonido" title="Sonido">🔊</button>
+    </div>
+  </aside>
+  <div class="escenario">
+    <canvas id="lienzo"></canvas>
+    <div class="pista" id="pista">Desliza el dedo por el camino ✏️</div>
+    <div id="celebra">
+      <div class="estrellas">⭐️ 🎉 ⭐️</div>
+      <div class="bien">¡BIEN!</div>
+      <div class="acciones">
+        <button class="grande" id="btnSiguiente">Siguiente ▶</button>
+        <button class="grande suave" id="btnCambiar">Otra vez 🔄</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---------------------------------------------------------------------------
+  // Esela · Juego de laberintos táctil para peques
+  // Sin dependencias. Funciona sin conexión abriendo este archivo en la tablet.
+  // Diseño pensado para niñas y niños con autismo:
+  //   · Sin prisa, sin "game over", sin castigos.
+  //   · Si el dedo se sale, el personaje simplemente espera (no pasa nada malo).
+  //   · Refuerzo positivo claro al terminar: aplausos + la palabra "¡BIEN!".
+  // ---------------------------------------------------------------------------
+
+  // Cada tema es un ESCENARIO (tapiz de fondo + laberinto con su propia
+  // "contextura"): el panal de cera, las pasarelas de madera de la jungla,
+  // la cueva de cristales y el agua de la piscina. Todos suaves y calmados.
+  const TEMAS = [
+    {
+      id: "abeja", inicio: "🐝", meta: "🍯",
+      titulo: "Lleva la abejita al panal",
+      escenario: "colmena",
+      suelo: "#FFF8E1", pared: "#EBA02E", paredLuz: "#FFD684", camino: "#F49A1E",
+      cielo: ["#FFF3C4", "#FBE08A"],
+    },
+    {
+      id: "jungla", inicio: "🐵", meta: "🍌",
+      titulo: "Lleva el monito por las pasarelas al plátano",
+      escenario: "jungla",
+      suelo: "#EAF6E2", pared: "#A9743B", paredLuz: "#D0A268", camino: "#8A5A2C",
+      cielo: ["#CDECBF", "#8AC793"],
+    },
+    {
+      id: "cueva", inicio: "🐭", meta: "🧀",
+      titulo: "Lleva el ratoncito por la cueva al queso",
+      escenario: "cueva",
+      suelo: "#ECEAF6", pared: "#7E789C", paredLuz: "#B8B3D6", camino: "#E4B65E",
+      cielo: ["#5A5480", "#332E4C"],
+    },
+    {
+      id: "pato", inicio: "🦆", meta: "🌊",
+      titulo: "Lleva el patito a la piscina",
+      escenario: "agua",
+      suelo: "#E7F4FF", pared: "#5FA9E2", paredLuz: "#A6D6F5", camino: "#3E8ED0",
+      cielo: ["#CBEBFF", "#8CC7F0"],
+    },
+  ];
+
+  // Nivel de dificultad. Cada 5 niveles el laberinto crece (celdas más
+  // pequeñas y con más ramificaciones) y tiene menos atajos. NIVEL guarda las
+  // dimensiones actuales de la rejilla.
+  let nivel = 1;
+  let braidProb = 0.15; // pocos atajos: el laberinto no se resuelve en línea recta
+  let celdasCorto = 5;  // nº de celdas en el lado CORTO (el largo se adapta a la pantalla)
+  const NIVEL = { cols: 5, filas: 5 };
+
+  const lienzo = document.getElementById("lienzo");
+  const ctx = lienzo.getContext("2d");
+  const celebra = document.getElementById("celebra");
+  const pista = document.getElementById("pista");
+  const tituloEmoji = document.getElementById("tituloEmoji");
+  const tituloTexto = document.getElementById("tituloTexto");
+  const contTemas = document.getElementById("temas");
+  const btnSonido = document.getElementById("btnSonido");
+  const nivelNum = document.getElementById("nivelNum");
+  const nivelPista = document.getElementById("nivelPista");
+  const ajustes = document.getElementById("ajustes");
+  const ajustesFondo = document.getElementById("ajustesFondo");
+
+  let tema = TEMAS[0];
+  let celdas = [];      // rejilla del laberinto
+  let inicio, meta;     // celdas de inicio y meta
+  let actual;           // celda donde está el personaje
+  let camino = [];      // celdas trazadas por el dedo (ruta simple)
+  let ganado = false;
+  let dibujando = false;
+  let posPersonaje = null; // posición en píxeles del personaje (para deslizar)
+  let visualIdx = 0;       // celda del rastro que el personaje ha alcanzado visualmente
+
+  // Geometría de pintado (se recalcula al redimensionar)
+  let g = { tam: 0, offX: 0, offY: 0 };
+
+  // Sonido
+  let sonidoActivo = true;
+  let audio = null;
+  const confeti = [];
+
+  // ------------------------------- Laberinto --------------------------------
+
+  function generarLaberinto(W, H) {
+    const grid = [];
+    for (let y = 0; y < H; y++) {
+      const fila = [];
+      for (let x = 0; x < W; x++) {
+        fila.push({ x, y, muros: { t: true, r: true, b: true, l: true }, visto: false });
+      }
+      grid.push(fila);
+    }
+    const pila = [];
+    let cur = grid[0][0];
+    cur.visto = true;
+    let n = 1;
+    const total = W * H;
+    const op = { t: "b", r: "l", b: "t", l: "r" };
+    while (n < total) {
+      const vec = [];
+      const { x, y } = cur;
+      if (y > 0 && !grid[y - 1][x].visto) vec.push(["t", grid[y - 1][x]]);
+      if (x < W - 1 && !grid[y][x + 1].visto) vec.push(["r", grid[y][x + 1]]);
+      if (y < H - 1 && !grid[y + 1][x].visto) vec.push(["b", grid[y + 1][x]]);
+      if (x > 0 && !grid[y][x - 1].visto) vec.push(["l", grid[y][x - 1]]);
+      if (vec.length) {
+        const [dir, sig] = vec[(Math.random() * vec.length) | 0];
+        cur.muros[dir] = false;
+        sig.muros[op[dir]] = false;
+        pila.push(cur);
+        cur = sig; cur.visto = true; n++;
+      } else {
+        cur = pila.pop();
+      }
+    }
+    // "Trenzado" suave: abre algún callejón sin salida para que sea más fácil
+    // (varios caminos posibles => el peque se atasca menos).
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const c = grid[y][x];
+        const cerrados = ["t", "r", "b", "l"].filter((d) => c.muros[d]);
+        if (cerrados.length === 3 && Math.random() < braidProb) {
+          const dirs = [];
+          if (y > 0 && c.muros.t) dirs.push("t");
+          if (x < W - 1 && c.muros.r) dirs.push("r");
+          if (y < H - 1 && c.muros.b) dirs.push("b");
+          if (x > 0 && c.muros.l) dirs.push("l");
+          if (dirs.length) {
+            const d = dirs[(Math.random() * dirs.length) | 0];
+            c.muros[d] = false;
+            const dx = d === "r" ? 1 : d === "l" ? -1 : 0;
+            const dy = d === "b" ? 1 : d === "t" ? -1 : 0;
+            grid[y + dy][x + dx].muros[op[d]] = false;
+          }
+        }
+      }
+    }
+    return grid;
+  }
+
+  // Camino de solución (BFS) entre inicio y meta con el laberinto actual.
+  function rutaSolucion() {
+    const cola = [inicio], previo = new Map([[inicio, null]]);
+    while (cola.length) {
+      const c = cola.shift();
+      if (c === meta) break;
+      const vec = [];
+      if (c.y > 0) vec.push(celdas[c.y - 1][c.x]);
+      if (c.x < NIVEL.cols - 1) vec.push(celdas[c.y][c.x + 1]);
+      if (c.y < NIVEL.filas - 1) vec.push(celdas[c.y + 1][c.x]);
+      if (c.x > 0) vec.push(celdas[c.y][c.x - 1]);
+      vec.forEach((n) => { if (pasable(c, n) && !previo.has(n)) { previo.set(n, c); cola.push(n); } });
+    }
+    if (!previo.has(meta)) return null;
+    const ruta = []; let cur = meta;
+    while (cur) { ruta.unshift(cur); cur = previo.get(cur); }
+    return ruta;
+  }
+
+  // ¿La solución es demasiado obvia (recta o simple escuadra)? Exige un mínimo
+  // de giros y de longitud extra sobre la distancia en línea recta.
+  function esTrivial() {
+    const ruta = rutaSolucion();
+    if (!ruta || ruta.length < 2) return true;
+    const recta = (NIVEL.cols - 1) + (NIVEL.filas - 1);
+    const minLen = recta + Math.max(3, Math.round(recta * 0.4));
+    if (ruta.length - 1 < minLen) return true;
+    let giros = 0;
+    for (let i = 2; i < ruta.length; i++) {
+      const dx1 = ruta[i - 1].x - ruta[i - 2].x, dy1 = ruta[i - 1].y - ruta[i - 2].y;
+      const dx2 = ruta[i].x - ruta[i - 1].x, dy2 = ruta[i].y - ruta[i - 1].y;
+      if (dx1 !== dx2 || dy1 !== dy2) giros++;
+    }
+    return giros < 3;
+  }
+
+  function nuevoLaberinto() {
+    // Ajusta la rejilla a la forma de la pantalla (alargada en vertical) para
+    // aprovechar todo el espacio.
+    const dim = dimsParaPantalla();
+    NIVEL.cols = dim.cols; NIVEL.filas = dim.filas;
+    if (nivelPista) nivelPista.textContent = `rejilla ${dim.cols}×${dim.filas}`;
+    // Inicio y meta en esquinas opuestas; regenerar hasta que la solución no
+    // sea trivial (ni recta ni escuadra), incluso en los niveles fáciles.
+    let intentos = 0;
+    do {
+      celdas = generarLaberinto(NIVEL.cols, NIVEL.filas);
+      inicio = celdas[NIVEL.filas - 1][0];        // abajo-izquierda
+      meta = celdas[0][NIVEL.cols - 1];           // arriba-derecha
+      intentos++;
+    } while (intentos < 40 && esTrivial());
+    actual = inicio;
+    camino = [inicio];
+    visualIdx = 0;
+    ganado = false;
+    dibujando = false;
+    confeti.length = 0;
+    celebra.classList.remove("mostrar");
+    pista.style.display = "";
+    ajustarTamano();
+  }
+
+  // Dificultad por nivel: cada 5 niveles el escenario se hace más denso
+  // (más celdas => más pequeñas y con más caminos posibles) y con menos atajos.
+  // Curva pensada para: nivel 20 ≈ reto de adolescente; nivel 50 ≈ reto de adulto.
+  function dimsDeNivel(n) {
+    const paso = Math.floor((n - 1) / 5);        // sube cada 5 niveles
+    const corto = Math.min(5 + paso * 3, 30);    // celdas en el lado corto (5 → 8 → 11 …)
+    const braid = Math.max(0, 0.15 - (n - 1) * 0.012); // pocos atajos; ninguno al subir
+    return { corto, braid };
+  }
+
+  // Calcula filas×columnas para LLENAR la pantalla con celdas cuadradas: el lado
+  // corto lleva `celdasCorto` celdas y el largo las que quepan (más alto que
+  // ancho en vertical). Así se aprovecha toda la pantalla en móvil/tablet.
+  function dimsParaPantalla() {
+    const rect = lienzo.parentElement.getBoundingClientRect();
+    const w = rect.width || 400, h = rect.height || 600;
+    const corto = celdasCorto;
+    const menor = Math.min(w, h), mayor = Math.max(w, h);
+    const cell = menor / corto;
+    const largo = Math.max(corto, Math.min(64, Math.round(mayor / cell)));
+    return (w >= h) ? { cols: largo, filas: corto } : { cols: corto, filas: largo };
+  }
+
+  function aplicarNivel(n) {
+    nivel = Math.max(1, Math.min(99, Math.round(n) || 1));
+    const { corto, braid } = dimsDeNivel(nivel);
+    celdasCorto = corto;
+    braidProb = braid;
+    if (nivelNum) nivelNum.value = nivel;
+    nuevoLaberinto();
+  }
+
+  // ¿Se puede pasar de la celda `a` a la `b` (adyacente, sin muro)?
+  function pasable(a, b) {
+    const dx = b.x - a.x, dy = b.y - a.y;
+    if (dx === 1 && dy === 0) return !a.muros.r;
+    if (dx === -1 && dy === 0) return !a.muros.l;
+    if (dx === 0 && dy === 1) return !a.muros.b;
+    if (dx === 0 && dy === -1) return !a.muros.t;
+    return false;
+  }
+
+  // ------------------------------- Pintado ----------------------------------
+
+  function ajustarTamano() {
+    const rect = lienzo.parentElement.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    lienzo.width = Math.max(1, Math.round(rect.width * dpr));
+    lienzo.height = Math.max(1, Math.round(rect.height * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const W = NIVEL.cols, H = NIVEL.filas;
+    const pad = 8; // margen pequeño: aprovechar el máximo de pantalla
+    const tam = Math.min((rect.width - 2 * pad) / W, (rect.height - 2 * pad) / H);
+    g.tam = tam;
+    g.offX = (rect.width - tam * W) / 2;
+    g.offY = (rect.height - tam * H) / 2;
+    g.ancho = rect.width;
+    g.alto = rect.height;
+    posPersonaje = null; // al cambiar la geometría, recolocar sin animar
+  }
+
+  function centro(c) {
+    return {
+      x: g.offX + c.x * g.tam + g.tam / 2,
+      y: g.offY + c.y * g.tam + g.tam / 2,
+    };
+  }
+
+  function celdaEnPunto(px, py) {
+    const cx = Math.floor((px - g.offX) / g.tam);
+    const cy = Math.floor((py - g.offY) / g.tam);
+    if (cx < 0 || cy < 0 || cx >= NIVEL.cols || cy >= NIVEL.filas) return null;
+    return celdas[cy][cx];
+  }
+
+  function dibujar() {
+    if (!g.tam) return;
+    ctx.clearRect(0, 0, g.ancho, g.alto);
+    const W = NIVEL.cols, H = NIVEL.filas, t = g.tam;
+
+    // 1) Tapiz de fondo del escenario (cueva, jungla, panal, agua…)
+    pintarFondo();
+
+    // 2) Suelo del laberinto, con sombra suave para que "flote" sobre el tapiz.
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.18)";
+    ctx.shadowBlur = 18;
+    ctx.shadowOffsetY = 8;
+    ctx.globalAlpha = 0.94;
+    ctx.fillStyle = tema.suelo;
+    rr(g.offX - 6, g.offY - 6, t * W + 12, t * H + 12, 22);
+    ctx.fill();
+    ctx.restore();
+
+    // 3) Camino trazado por el dedo (línea gruesa tipo "rotulador").
+    if (camino.length > 1) {
+      ctx.strokeStyle = tema.camino;
+      ctx.lineWidth = t * 0.5;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      camino.forEach((c, i) => {
+        const p = centro(c);
+        i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y);
+      });
+      ctx.stroke();
+    }
+
+    // 4) Muros del laberinto con la "contextura" del escenario: dos pasadas
+    //    (base + luz) dan volumen — cera del panal, madera, roca o azulejo.
+    const anchoBase = Math.max(5, t * 0.16);
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.15)";
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetY = 3;
+    trazarMuros(tema.pared, anchoBase);
+    ctx.restore();
+    trazarMuros(tema.paredLuz, anchoBase * 0.42); // brillo superior
+
+    // 5) Meta y personaje (emojis grandes).
+    const pm = centro(meta);
+    emoji(tema.meta, pm.x, pm.y, t * 0.7);
+    const pa = posPersonaje || centro(actual);
+    emoji(tema.inicio, pa.x, pa.y, t * 0.66);
+
+    // 6) Confeti al ganar.
+    if (confeti.length) {
+      confeti.forEach((p) => {
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s);
+        ctx.restore();
+      });
+    }
+  }
+
+  // Traza todos los muros existentes con un color y grosor dados.
+  function trazarMuros(color, ancho) {
+    const W = NIVEL.cols, H = NIVEL.filas, t = g.tam;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = ancho;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const c = celdas[y][x];
+        const x0 = g.offX + x * t, y0 = g.offY + y * t;
+        const x1 = x0 + t, y1 = y0 + t;
+        if (c.muros.t) { ctx.moveTo(x0, y0); ctx.lineTo(x1, y0); }
+        if (c.muros.r) { ctx.moveTo(x1, y0); ctx.lineTo(x1, y1); }
+        if (c.muros.b) { ctx.moveTo(x0, y1); ctx.lineTo(x1, y1); }
+        if (c.muros.l) { ctx.moveTo(x0, y0); ctx.lineTo(x0, y1); }
+      }
+    }
+    ctx.stroke();
+  }
+
+  // ------------------------------ Tapices -----------------------------------
+  // Fondos calmados dibujados por código (sin imágenes, funcionan sin conexión).
+
+  function pintarFondo() {
+    const w = g.ancho, h = g.alto;
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, tema.cielo[0]);
+    grad.addColorStop(1, tema.cielo[1]);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+    switch (tema.escenario) {
+      case "colmena": fondoColmena(w, h); break;
+      case "jungla":  fondoJungla(w, h);  break;
+      case "cueva":   fondoCueva(w, h);   break;
+      case "agua":    fondoAgua(w, h);    break;
+    }
+  }
+
+  // Deterministas para que el fondo no "parpadee" entre fotogramas.
+  function hash(n) { const s = Math.sin(n * 127.1) * 43758.5453; return s - Math.floor(s); }
+
+  function fondoColmena(w, h) {
+    // Hexágonos de cera muy tenues + un solecito.
+    ctx.save();
+    ctx.globalAlpha = 0.10;
+    ctx.strokeStyle = "#C98A1E";
+    ctx.lineWidth = 2;
+    const r = Math.max(26, w * 0.05);
+    for (let j = 0; j < 8; j++) {
+      for (let i = 0; i < 8; i++) {
+        const cx = i * r * 1.7 + (j % 2 ? r * 0.85 : 0);
+        const cy = j * r * 1.5;
+        hexagono(cx, cy, r * 0.9);
+      }
+    }
+    ctx.restore();
+    ctx.save();
+    ctx.globalAlpha = 0.5; ctx.fillStyle = "#FFF6D0";
+    ctx.beginPath(); ctx.arc(w * 0.82, h * 0.14, w * 0.09, 0, 7); ctx.fill();
+    ctx.restore();
+  }
+
+  function hexagono(cx, cy, r) {
+    ctx.beginPath();
+    for (let k = 0; k < 6; k++) {
+      const a = Math.PI / 180 * (60 * k - 30);
+      const x = cx + r * Math.cos(a), y = cy + r * Math.sin(a);
+      k === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.closePath(); ctx.stroke();
+  }
+
+  function fondoJungla(w, h) {
+    // Hojas grandes y suaves en las esquinas + rayos de sol.
+    ctx.save();
+    ctx.globalAlpha = 0.18; ctx.fillStyle = "#5FA76B";
+    for (let i = 0; i < 7; i++) {
+      const x = hash(i + 1) * w, y = hash(i + 20) * h;
+      const s = (0.6 + hash(i + 5)) * w * 0.16;
+      ctx.save(); ctx.translate(x, y); ctx.rotate(hash(i + 9) * 6.28);
+      ctx.beginPath(); ctx.ellipse(0, 0, s, s * 0.42, 0, 0, 7); ctx.fill();
+      ctx.restore();
+    }
+    ctx.restore();
+    ctx.save();
+    ctx.globalAlpha = 0.12; ctx.strokeStyle = "#FFFBE0"; ctx.lineWidth = w * 0.05;
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath(); ctx.moveTo(w * (0.1 + i * 0.25), -10); ctx.lineTo(w * (0.02 + i * 0.25), h); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function fondoCueva(w, h) {
+    // Cueva calmada de cristales: estalactitas suaves + destellos.
+    ctx.save();
+    ctx.globalAlpha = 0.35; ctx.fillStyle = "#413B60";
+    for (let i = 0; i < 9; i++) {
+      const x = (i + 0.5) * (w / 9);
+      const largo = (0.5 + hash(i + 3)) * h * 0.18;
+      const ancho = w * 0.05;
+      ctx.beginPath();
+      ctx.moveTo(x - ancho, 0); ctx.lineTo(x + ancho, 0); ctx.lineTo(x, largo);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+    // Resplandor central cálido (acogedor, no da miedo).
+    const rg = ctx.createRadialGradient(w / 2, h / 2, 10, w / 2, h / 2, w * 0.7);
+    rg.addColorStop(0, "rgba(255,225,150,0.16)");
+    rg.addColorStop(1, "rgba(255,225,150,0)");
+    ctx.fillStyle = rg; ctx.fillRect(0, 0, w, h);
+    // Cristalitos que brillan.
+    ctx.save(); ctx.globalAlpha = 0.5; ctx.fillStyle = "#DCD6FF";
+    for (let i = 0; i < 24; i++) {
+      const x = hash(i + 2) * w, y = hash(i + 40) * h, s = 1 + hash(i + 7) * 2.5;
+      ctx.beginPath(); ctx.arc(x, y, s, 0, 7); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function fondoAgua(w, h) {
+    // Olas suaves y burbujitas.
+    ctx.save();
+    ctx.globalAlpha = 0.16; ctx.strokeStyle = "#FFFFFF"; ctx.lineWidth = 4; ctx.lineCap = "round";
+    for (let j = 0; j < 7; j++) {
+      const y = h * (0.12 + j * 0.12);
+      ctx.beginPath();
+      for (let x = 0; x <= w; x += 12) {
+        const yy = y + Math.sin((x / w) * 12 + j) * 6;
+        x === 0 ? ctx.moveTo(x, yy) : ctx.lineTo(x, yy);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.save(); ctx.globalAlpha = 0.4; ctx.fillStyle = "#EAF6FF";
+    for (let i = 0; i < 16; i++) {
+      const x = hash(i + 11) * w, y = hash(i + 33) * h, s = 3 + hash(i + 6) * 6;
+      ctx.beginPath(); ctx.arc(x, y, s, 0, 7); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function rr(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function emoji(ch, x, y, size) {
+    ctx.font = `${size}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(ch, x, y);
+  }
+
+  // ------------------------------- Interacción ------------------------------
+
+  // Ruta por el corredor entre dos celdas (BFS a través de muros abiertos).
+  function caminoEntre(a, b) {
+    if (a === b) return [a];
+    const cola = [a], previo = new Map([[a, null]]);
+    while (cola.length) {
+      const c = cola.shift();
+      if (c === b) break;
+      const vec = [];
+      if (c.y > 0) vec.push(celdas[c.y - 1][c.x]);
+      if (c.x < NIVEL.cols - 1) vec.push(celdas[c.y][c.x + 1]);
+      if (c.y < NIVEL.filas - 1) vec.push(celdas[c.y + 1][c.x]);
+      if (c.x > 0) vec.push(celdas[c.y][c.x - 1]);
+      vec.forEach((n) => { if (pasable(c, n) && !previo.has(n)) { previo.set(n, c); cola.push(n); } });
+    }
+    if (!previo.has(b)) return null;
+    const ruta = []; let cur = b;
+    while (cur) { ruta.unshift(cur); cur = previo.get(cur); }
+    return ruta;
+  }
+
+  // Da un paso del rastro hacia una celda (empuja o retrocede recortando).
+  function pasoDeCamino(c) {
+    const idx = camino.indexOf(c);
+    if (idx !== -1) camino.length = idx + 1; // retrocede / rehace
+    else camino.push(c);
+    actual = c;
+  }
+
+  let ultimoPunto = null; // último punto del dedo (para interpolar el trazo)
+
+  // Un solo paso a una celda CONTIGUA abierta (nunca salta lejos).
+  function pasoAdyacente(destino) {
+    if (!destino || destino === actual) return;
+    if (!pasable(actual, destino)) return; // no es contigua/abierta: no avanza
+    pasoDeCamino(destino);
+    if (actual === meta) ganar();
+  }
+
+  // Sigue al dedo SOLO por las celdas contiguas que va tocando. Interpola entre
+  // el punto anterior y el actual para que también funcione arrastrando rápido,
+  // pero SIN saltar a celdas lejanas: un toque suelto no recorre el laberinto.
+  function seguirDedo(px, py) {
+    if (ganado) return;
+    if (!ultimoPunto) { ultimoPunto = { x: px, y: py }; return; }
+    const dx = px - ultimoPunto.x, dy = py - ultimoPunto.y;
+    const dist = Math.hypot(dx, dy);
+    const muestra = Math.max(4, g.tam * 0.4);
+    const n = Math.max(1, Math.ceil(dist / muestra));
+    for (let k = 1; k <= n; k++) {
+      pasoAdyacente(celdaEnPunto(ultimoPunto.x + dx * (k / n), ultimoPunto.y + dy * (k / n)));
+      if (ganado) break;
+    }
+    ultimoPunto = { x: px, y: py };
+  }
+
+  function xy(ev) {
+    const r = lienzo.getBoundingClientRect();
+    const t = ev.touches ? ev.touches[0] : ev;
+    return { x: t.clientX - r.left, y: t.clientY - r.top };
+  }
+
+  lienzo.addEventListener("pointerdown", (ev) => {
+    ev.preventDefault();
+    prepararAudio();
+    if (ganado) return;
+    dibujando = true;
+    lienzo.setPointerCapture?.(ev.pointerId);
+    const p = xy(ev);
+    ultimoPunto = { x: p.x, y: p.y };
+    // Un solo paso si tocas una celda contigua; tocar lejos no hace nada.
+    pasoAdyacente(celdaEnPunto(p.x, p.y));
+  });
+  lienzo.addEventListener("pointermove", (ev) => {
+    if (!dibujando) return;
+    ev.preventDefault();
+    const p = xy(ev);
+    seguirDedo(p.x, p.y);
+  });
+  const soltar = () => { dibujando = false; ultimoPunto = null; };
+  lienzo.addEventListener("pointerup", soltar);
+  lienzo.addEventListener("pointercancel", soltar);
+
+  // ------------------------------- Ganar ------------------------------------
+
+  function ganar() {
+    if (ganado) return;
+    ganado = true;
+    dibujando = false;
+    pista.style.display = "none";
+    celebra.classList.add("mostrar");
+    lanzarConfeti();
+    aplausos();
+    hablar();
+  }
+
+  function lanzarConfeti() {
+    const colores = ["#F9A826", "#4CAF7D", "#4FA3E3", "#E36BA0", "#FDD835", "#FF7043"];
+    for (let i = 0; i < 120; i++) {
+      confeti.push({
+        x: g.ancho * (0.2 + Math.random() * 0.6),
+        y: g.alto * 0.15 + Math.random() * 40,
+        vx: (Math.random() - 0.5) * 4,
+        vy: 2 + Math.random() * 4,
+        s: 6 + Math.random() * 8,
+        rot: Math.random() * 6.28,
+        vr: (Math.random() - 0.5) * 0.3,
+        color: colores[(Math.random() * colores.length) | 0],
+      });
+    }
+  }
+
+  // ------------------------------- Sonido -----------------------------------
+
+  function prepararAudio() {
+    if (!audio) {
+      try {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (AC) audio = new AC();
+      } catch (e) { audio = null; }
+    }
+    if (audio && audio.state === "suspended") audio.resume();
+  }
+
+  function aplausos() {
+    if (!sonidoActivo || !audio) return;
+    const ahora = audio.currentTime;
+    const dur = 1.8;
+    // Muchas palmadas cortas = aplauso cálido.
+    for (let i = 0; i < 45; i++) {
+      const t = ahora + Math.random() * dur;
+      const largo = Math.floor(audio.sampleRate * 0.05);
+      const buf = audio.createBuffer(1, largo, audio.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let j = 0; j < largo; j++) d[j] = (Math.random() * 2 - 1) * Math.pow(1 - j / largo, 2);
+      const src = audio.createBufferSource(); src.buffer = buf;
+      const bp = audio.createBiquadFilter();
+      bp.type = "bandpass"; bp.frequency.value = 900 + Math.random() * 2200; bp.Q.value = 0.7;
+      const gg = audio.createGain(); gg.gain.value = 0.06 + Math.random() * 0.05;
+      src.connect(bp); bp.connect(gg); gg.connect(audio.destination);
+      src.start(t);
+    }
+    // Campanita alegre (arpegio ascendente).
+    const notas = [523.25, 659.25, 783.99, 1046.5];
+    notas.forEach((f, i) => {
+      const t = ahora + i * 0.12;
+      const o = audio.createOscillator(); o.type = "triangle"; o.frequency.value = f;
+      const gg = audio.createGain();
+      gg.gain.setValueAtTime(0.0001, t);
+      gg.gain.exponentialRampToValueAtTime(0.22, t + 0.02);
+      gg.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+      o.connect(gg); gg.connect(audio.destination);
+      o.start(t); o.stop(t + 0.55);
+    });
+  }
+
+  function hablar() {
+    if (!sonidoActivo || !("speechSynthesis" in window)) return;
+    try {
+      const u = new SpeechSynthesisUtterance("¡Muy bien!");
+      u.lang = "es-ES"; u.rate = 0.95; u.pitch = 1.1;
+      const voces = speechSynthesis.getVoices();
+      const es = voces.find((v) => /es/i.test(v.lang));
+      if (es) u.voice = es;
+      speechSynthesis.cancel();
+      speechSynthesis.speak(u);
+    } catch (e) { /* sin voz, no pasa nada */ }
+  }
+
+  // ------------------------------- Temas / UI -------------------------------
+
+  function aplicarTema(t) {
+    tema = t;
+    // (--fondo se deja en su valor por defecto, opaco, para el menú de ajustes)
+    document.documentElement.style.setProperty("--suelo", t.suelo);
+    document.documentElement.style.setProperty("--pared", t.pared);
+    document.documentElement.style.setProperty("--camino", t.camino);
+    tituloEmoji.textContent = t.inicio;
+    tituloTexto.textContent = t.titulo;
+    [...contTemas.children].forEach((b) => b.classList.toggle("activo", b.dataset.id === t.id));
+    nuevoLaberinto();
+  }
+
+  TEMAS.forEach((t) => {
+    const b = document.createElement("button");
+    b.className = "icono"; b.dataset.id = t.id; b.textContent = t.inicio;
+    b.title = t.titulo;
+    b.addEventListener("click", () => { aplicarTema(t); cerrarAjustes(); });
+    contTemas.appendChild(b);
+  });
+
+  // Menú de ajustes (tuerca): se desliza desde la derecha.
+  function abrirAjustes() { ajustes.classList.add("abierto"); ajustesFondo.classList.add("abierto"); }
+  function cerrarAjustes() { ajustes.classList.remove("abierto"); ajustesFondo.classList.remove("abierto"); }
+  document.getElementById("btnAjustes").addEventListener("click", abrirAjustes);
+  document.getElementById("btnCerrarAjustes").addEventListener("click", cerrarAjustes);
+  ajustesFondo.addEventListener("click", cerrarAjustes);
+
+  btnSonido.addEventListener("click", () => {
+    sonidoActivo = !sonidoActivo;
+    btnSonido.textContent = sonidoActivo ? "🔊" : "🔇";
+    if (sonidoActivo) prepararAudio();
+  });
+
+  // Volver a la lista de juegos. En la web va a la sección Juegos; abierto como
+  // archivo (sin conexión) va al índice de la carpeta de juegos.
+  document.getElementById("btnVolver").addEventListener("click", () => {
+    if (location.protocol === "file:") { window.location.href = "../index.html"; return; }
+    // Respeta el idioma de la ruta (/es/juegos, /en/juegos…) para no dar 404.
+    const locs = ["es", "en", "de", "fr", "pt", "it", "ca"];
+    const ck = document.cookie.match(/(?:^|;\s*)NEXT_LOCALE=([^;]+)/);
+    let loc = ck && locs.includes(ck[1]) ? ck[1] : "";
+    if (!loc) { const n = (navigator.language || "es").slice(0, 2).toLowerCase(); loc = locs.includes(n) ? n : "es"; }
+    window.location.href = "/" + loc + "/juegos";
+  });
+
+  document.getElementById("btnOtra").addEventListener("click", () => nuevoLaberinto());
+  // Al ganar: "Siguiente ▶" sube de nivel; "Otra vez 🔄" repite el mismo nivel.
+  document.getElementById("btnSiguiente").addEventListener("click", () => aplicarNivel(nivel + 1));
+  document.getElementById("btnCambiar").addEventListener("click", () => nuevoLaberinto());
+
+  // Control de nivel en la barra superior.
+  document.getElementById("btnNivelMenos").addEventListener("click", () => aplicarNivel(nivel - 1));
+  document.getElementById("btnNivelMas").addEventListener("click", () => aplicarNivel(nivel + 1));
+  nivelNum.addEventListener("change", () => aplicarNivel(+nivelNum.value));
+
+  // ------------------------------- Bucle ------------------------------------
+
+  function bucle() {
+    if (confeti.length) {
+      for (let i = confeti.length - 1; i >= 0; i--) {
+        const p = confeti[i];
+        p.x += p.vx; p.y += p.vy; p.vy += 0.12; p.rot += p.vr;
+        if (p.y > g.alto + 40) confeti.splice(i, 1);
+      }
+    }
+    // Deslizamiento del personaje SIGUIENDO EL RASTRO celda a celda (por el
+    // corredor, sin cruzar muros): se mueve de forma continua con el dedo.
+    if (g.tam && camino.length) {
+      if (visualIdx > camino.length - 1) visualIdx = camino.length - 1;
+      if (visualIdx < 0) visualIdx = 0;
+      if (!posPersonaje) {
+        const c0 = centro(camino[visualIdx]);
+        posPersonaje = { x: c0.x, y: c0.y };
+      }
+      const atraso = (camino.length - 1) - visualIdx;
+      // Presupuesto de avance por fotograma: más rápido si el dedo va lejos.
+      let presupuesto = g.tam * (atraso > 5 ? 1.8 : atraso > 1 ? 0.8 : 0.33);
+      let guarda = 0;
+      while (presupuesto > 0 && guarda++ < 200) {
+        const obj = centro(camino[visualIdx]);
+        const dx = obj.x - posPersonaje.x, dy = obj.y - posPersonaje.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist <= presupuesto) {
+          posPersonaje.x = obj.x; posPersonaje.y = obj.y;
+          presupuesto -= dist;
+          if (visualIdx < camino.length - 1) visualIdx++;
+          else break;
+        } else {
+          posPersonaje.x += (dx / dist) * presupuesto;
+          posPersonaje.y += (dy / dist) * presupuesto;
+          presupuesto = 0;
+        }
+      }
+    }
+    dibujar();
+    requestAnimationFrame(bucle);
+  }
+
+  window.addEventListener("resize", ajustarTamano);
+  if ("speechSynthesis" in window) speechSynthesis.onvoiceschanged = () => {};
+
+  aplicarTema(TEMAS[0]);
+  aplicarNivel(nivel); // fija dificultad, pista de tamaño y genera el laberinto
+  requestAnimationFrame(bucle);
+
+  // Enganche mínimo para pruebas automáticas (no molesta al jugar).
+  window.__esela = {
+    ganar,
+    irAMeta() {
+      // Camina en línea por el laberinto hasta la meta (para pruebas).
+      const cola = [inicio], previo = new Map([[inicio, null]]);
+      while (cola.length) {
+        const c = cola.shift();
+        if (c === meta) break;
+        const vec = [];
+        if (c.y > 0) vec.push(celdas[c.y - 1][c.x]);
+        if (c.x < NIVEL.cols - 1) vec.push(celdas[c.y][c.x + 1]);
+        if (c.y < NIVEL.filas - 1) vec.push(celdas[c.y + 1][c.x]);
+        if (c.x > 0) vec.push(celdas[c.y][c.x - 1]);
+        vec.forEach((n) => { if (pasable(c, n) && !previo.has(n)) { previo.set(n, c); cola.push(n); } });
+      }
+      const ruta = []; let cur = meta;
+      while (cur) { ruta.unshift(cur); cur = previo.get(cur); }
+      camino = ruta; actual = meta; ganar();
+    },
+    __test_rutaPantalla() {
+      // Ruta de solución (BFS) como centros de celda en coordenadas de pantalla.
+      const cola = [inicio], previo = new Map([[inicio, null]]);
+      while (cola.length) {
+        const c = cola.shift();
+        if (c === meta) break;
+        const vec = [];
+        if (c.y > 0) vec.push(celdas[c.y - 1][c.x]);
+        if (c.x < NIVEL.cols - 1) vec.push(celdas[c.y][c.x + 1]);
+        if (c.y < NIVEL.filas - 1) vec.push(celdas[c.y + 1][c.x]);
+        if (c.x > 0) vec.push(celdas[c.y][c.x - 1]);
+        vec.forEach((n) => { if (pasable(c, n) && !previo.has(n)) { previo.set(n, c); cola.push(n); } });
+      }
+      const ruta = []; let cur = meta;
+      while (cur) { ruta.unshift(cur); cur = previo.get(cur); }
+      const r = lienzo.getBoundingClientRect();
+      return ruta.map((c) => { const p = centro(c); return { x: r.left + p.x, y: r.top + p.y }; });
+    },
+    get ganado() { return ganado; },
+    get pasosCamino() { return camino.length; },
+    get nivel() { return nivel; },
+    get dims() { return { cols: NIVEL.cols, filas: NIVEL.filas }; },
+    setNivel(n) { aplicarNivel(n); },
+    get posPersonaje() { return posPersonaje ? { x: posPersonaje.x, y: posPersonaje.y } : null; },
+    get centroActual() { const c = centro(actual); return { x: c.x, y: c.y }; },
+    nuevo() { nuevoLaberinto(); },
+    metrica() {
+      const r = rutaSolucion();
+      if (!r) return { pasos: 0, giros: 0 };
+      let g2 = 0;
+      for (let i = 2; i < r.length; i++) {
+        const a = r[i - 1].x - r[i - 2].x, b = r[i - 1].y - r[i - 2].y;
+        const c = r[i].x - r[i - 1].x, d = r[i].y - r[i - 1].y;
+        if (a !== c || b !== d) g2++;
+      }
+      return { pasos: r.length - 1, giros: g2 };
+    },
+    abrirAjustes() { document.getElementById("btnAjustes").click(); },
+    get ajustesAbierto() { return ajustes.classList.contains("abierto"); },
+  };
+})();
+</script>
+</body>
+</html>
